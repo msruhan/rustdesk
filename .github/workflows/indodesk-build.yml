@@ -32,11 +32,11 @@ jobs:
 
       - name: Setup vcpkg
         run: |
-          git clone https://github.com/microsoft/vcpkg $env:VCPKG_INSTALLATION_ROOT
-          $env:VCPKG_INSTALLATION_ROOT\bootstrap-vcpkg.bat
-          $env:VCPKG_INSTALLATION_ROOT\vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
-        env:
-          VCPKG_INSTALLATION_ROOT: C:\vcpkg
+          $vcpkg = "C:\vcpkg"
+          git clone https://github.com/microsoft/vcpkg $vcpkg
+          & "$vcpkg\bootstrap-vcpkg.bat"
+          & "$vcpkg\vcpkg" install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+          echo "VCPKG_ROOT=$vcpkg" >> $env:GITHUB_ENV
 
       - name: Build Flutter Windows
         run: |
@@ -72,18 +72,35 @@ jobs:
           flutter-version: '3.19.6'
           channel: 'stable'
 
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           brew install nasm yasm cmake pkg-config
-          vcpkg install libvpx libyuv opus aom
+
+      - name: Setup vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg $HOME/vcpkg
+          $HOME/vcpkg/bootstrap-vcpkg.sh
+          echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
+
+      - name: Install vcpkg dependencies
+        run: |
+          $HOME/vcpkg/vcpkg install libvpx libyuv opus aom
         env:
-          VCPKG_ROOT: /usr/local/share/vcpkg
+          VCPKG_ROOT: $HOME/vcpkg
+
+      - name: Build Rust library
+        run: |
+          cargo build --release
+        env:
+          VCPKG_ROOT: $HOME/vcpkg
 
       - name: Build Flutter macOS
         run: |
           flutter pub get
           flutter build macos --release
         working-directory: flutter
+        env:
+          VCPKG_ROOT: $HOME/vcpkg
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
