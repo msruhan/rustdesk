@@ -52,8 +52,8 @@ jobs:
         run: |
           echo "=== Dart files ==="
           ls -la flutter/lib/generated_bridge.dart flutter/lib/bridge_definitions.dart
-          echo "=== Rust bridge file ==="
-          ls -la src/bridge_generated.rs
+          echo "=== Rust bridge files ==="
+          ls -la src/bridge_generated.rs src/bridge_generated.io.rs
           echo "=== First 5 lines of bridge_generated.rs ==="
           head -5 src/bridge_generated.rs
 
@@ -69,7 +69,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bridge-rust
-          path: src/bridge_generated.rs
+          path: |
+            src/bridge_generated.rs
+            src/bridge_generated.io.rs
 
   build-windows:
     needs: [generate-bridge]
@@ -103,7 +105,7 @@ jobs:
         shell: bash
         run: |
           echo "=== Checking bridge files ==="
-          ls -la flutter/lib/generated_bridge.dart flutter/lib/bridge_definitions.dart src/bridge_generated.rs
+          ls -la flutter/lib/generated_bridge.dart flutter/lib/bridge_definitions.dart src/bridge_generated.rs src/bridge_generated.io.rs
 
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v1
@@ -188,7 +190,7 @@ jobs:
       - name: Verify bridge files
         run: |
           echo "=== Checking bridge files ==="
-          ls -la flutter/lib/generated_bridge.dart flutter/lib/bridge_definitions.dart src/bridge_generated.rs
+          ls -la flutter/lib/generated_bridge.dart flutter/lib/bridge_definitions.dart src/bridge_generated.rs src/bridge_generated.io.rs
 
       - name: Install build runtime
         run: |
