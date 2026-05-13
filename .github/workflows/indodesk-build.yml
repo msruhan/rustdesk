@@ -45,7 +45,8 @@ jobs:
             --rust-input ../src/flutter_ffi.rs \
             --dart-output ./lib/generated_bridge.dart \
             --dart-decl-output ./lib/bridge_definitions.dart \
-            --rust-output ../src/bridge_generated.rs
+            --rust-output ../src/bridge_generated.rs \
+            --c-output ./macos/Runner/bridge_generated.h
           python3 - <<'PY'
           from pathlib import Path
 
@@ -71,6 +72,8 @@ jobs:
           ls -la flutter/lib/*.freezed.dart || true
           echo "=== Rust bridge files ==="
           ls -la src/bridge_generated.rs src/bridge_generated.io.rs
+          echo "=== macOS bridge header ==="
+          ls -la flutter/macos/Runner/bridge_generated.h
           echo "=== First 5 lines of bridge_generated.rs ==="
           head -5 src/bridge_generated.rs
 
@@ -92,6 +95,12 @@ jobs:
           path: |
             src/bridge_generated.rs
             src/bridge_generated.io.rs
+
+      - name: Upload macOS bridge header artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-macos-header
+          path: flutter/macos/Runner/bridge_generated.h
 
   build-windows:
     needs: [generate-bridge]
@@ -209,10 +218,18 @@ jobs:
           name: bridge-rust
           path: src/
 
+      - name: Restore macOS bridge header
+        uses: actions/download-artifact@v4
+        with:
+          name: bridge-macos-header
+          path: flutter/macos/Runner/
+
       - name: Verify bridge files
         run: |
           echo "=== Checking bridge files ==="
           ls -la flutter/lib/generated_bridge.dart flutter/lib/bridge_definitions.dart src/bridge_generated.rs src/bridge_generated.io.rs
+          echo "=== macOS bridge header ==="
+          ls -la flutter/macos/Runner/bridge_generated.h
           echo "=== Freezed files ==="
           ls -la flutter/lib/*.freezed.dart || true
 
