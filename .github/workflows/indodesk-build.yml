@@ -83,17 +83,21 @@ jobs:
 
       - name: Install vcpkg dependencies
         run: |
-          cd $HOME
-          $HOME/vcpkg/vcpkg install libvpx libyuv opus aom --triplet x64-osx --overlay-triplets=$HOME/vcpkg/triplets
+          $HOME/vcpkg/vcpkg install libvpx libyuv opus aom --classic --triplet arm64-osx
+          $HOME/vcpkg/vcpkg install libvpx libyuv opus aom --classic --triplet x64-osx
         env:
           VCPKG_ROOT: $HOME/vcpkg
           VCPKG_DISABLE_METRICS: 1
 
       - name: Build Rust library
         run: |
+          export PKG_CONFIG_PATH="$HOME/vcpkg/installed/arm64-osx/lib/pkgconfig:$HOME/vcpkg/installed/x64-osx/lib/pkgconfig"
+          export OPUS_INCLUDE_DIR="$HOME/vcpkg/installed/arm64-osx/include"
+          export OPUS_LIB_DIR="$HOME/vcpkg/installed/arm64-osx/lib"
           cargo build --release
         env:
           VCPKG_ROOT: $HOME/vcpkg
+          VCPKG_INSTALLED_DIR: $HOME/vcpkg/installed
 
       - name: Build Flutter macOS
         run: |
