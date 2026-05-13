@@ -44,7 +44,8 @@ jobs:
           ~/.cargo/bin/flutter_rust_bridge_codegen \
             --rust-input ../src/flutter_ffi.rs \
             --dart-output ./lib/generated_bridge.dart \
-            --dart-decl-output ./lib/bridge_definitions.dart
+            --dart-decl-output ./lib/bridge_definitions.dart \
+            --rust-output ../src/bridge_generated.rs
         working-directory: flutter
 
       - name: Upload bridge artifact
@@ -54,6 +55,7 @@ jobs:
           path: |
             ./flutter/lib/generated_bridge.dart
             ./flutter/lib/bridge_definitions.dart
+            ./src/bridge_generated.rs
 
   build-windows:
     needs: [generate-bridge]
@@ -120,7 +122,7 @@ jobs:
 
       - name: Build rustdesk
         run: |
-          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
+          python .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
           mv ./flutter/build/windows/x64/runner/Release ./indodesk
 
       - name: Upload Windows artifact
