@@ -30,7 +30,7 @@ jobs:
           components: rustfmt
 
       - name: Install flutter_rust_bridge_codegen
-        run: cargo install flutter_rust_bridge_codegen --version 1.80.0 --locked
+        run: cargo install flutter_rust_bridge_codegen --version 1.80.1 --locked
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -48,14 +48,28 @@ jobs:
             --rust-output ../src/bridge_generated.rs
         working-directory: flutter
 
-      - name: Upload bridge artifact
+      - name: Verify generated files
+        run: |
+          echo "=== Dart files ==="
+          ls -la flutter/lib/generated_bridge.dart flutter/lib/bridge_definitions.dart
+          echo "=== Rust bridge file ==="
+          ls -la src/bridge_generated.rs
+          echo "=== First 5 lines of bridge_generated.rs ==="
+          head -5 src/bridge_generated.rs
+
+      - name: Upload dart bridge artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bridge-artifact
+          name: bridge-dart
           path: |
-            ./flutter/lib/generated_bridge.dart
-            ./flutter/lib/bridge_definitions.dart
-            ./src/bridge_generated.rs
+            flutter/lib/generated_bridge.dart
+            flutter/lib/bridge_definitions.dart
+
+      - name: Upload rust bridge artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-rust
+          path: src/bridge_generated.rs
 
   build-windows:
     needs: [generate-bridge]
@@ -73,17 +87,29 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Restore bridge files
-        uses: actions/download-artifact@master
+      - name: Restore dart bridge files
+        uses: actions/download-artifact@v4
         with:
-          name: bridge-artifact
-          path: ./
+          name: bridge-dart
+          path: flutter/lib/
+
+      - name: Restore rust bridge file
+        uses: actions/download-artifact@v4
+        with:
+          name: bridge-rust
+          path: src/
+
+      - name: Verify bridge files
+        shell: bash
+        run: |
+          echo "=== Checking bridge files ==="
+          ls -la flutter/lib/generated_bridge.dart flutter/lib/bridge_definitions.dart src/bridge_generated.rs
 
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v1
         with:
           version: ${{ env.LLVM_VERSION }}
-          
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@v1
         with:
@@ -147,11 +173,22 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Restore bridge files
-        uses: actions/download-artifact@master
+      - name: Restore dart bridge files
+        uses: actions/download-artifact@v4
         with:
-          name: bridge-artifact
-          path: ./
+          name: bridge-dart
+          path: flutter/lib/
+
+      - name: Restore rust bridge file
+        uses: actions/download-artifact@v4
+        with:
+          name: bridge-rust
+          path: src/
+
+      - name: Verify bridge files
+        run: |
+          echo "=== Checking bridge files ==="
+          ls -la flutter/lib/generated_bridge.dart flutter/lib/bridge_definitions.dart src/bridge_generated.rs
 
       - name: Install build runtime
         run: |
