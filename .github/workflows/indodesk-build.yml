@@ -40,18 +40,21 @@ jobs:
 
       - name: Generate bridge
         run: |
-          dart pub get
+          flutter pub get
           ~/.cargo/bin/flutter_rust_bridge_codegen \
             --rust-input ../src/flutter_ffi.rs \
             --dart-output ./lib/generated_bridge.dart \
             --dart-decl-output ./lib/bridge_definitions.dart \
             --rust-output ../src/bridge_generated.rs
+          dart run build_runner build --delete-conflicting-outputs
         working-directory: flutter
 
       - name: Verify generated files
         run: |
           echo "=== Dart files ==="
           ls -la flutter/lib/generated_bridge.dart flutter/lib/bridge_definitions.dart
+          echo "=== Freezed files ==="
+          ls -la flutter/lib/*.freezed.dart || true
           echo "=== Rust bridge files ==="
           ls -la src/bridge_generated.rs src/bridge_generated.io.rs
           echo "=== First 5 lines of bridge_generated.rs ==="
@@ -61,9 +64,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bridge-dart
+          if-no-files-found: warn
           path: |
             flutter/lib/generated_bridge.dart
             flutter/lib/bridge_definitions.dart
+            flutter/lib/bridge_definitions.freezed.dart
+            flutter/lib/generated_bridge.freezed.dart
 
       - name: Upload rust bridge artifact
         uses: actions/upload-artifact@v4
@@ -106,6 +112,8 @@ jobs:
         run: |
           echo "=== Checking bridge files ==="
           ls -la flutter/lib/generated_bridge.dart flutter/lib/bridge_definitions.dart src/bridge_generated.rs src/bridge_generated.io.rs
+          echo "=== Freezed files ==="
+          ls -la flutter/lib/*.freezed.dart || true
 
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v1
@@ -191,6 +199,8 @@ jobs:
         run: |
           echo "=== Checking bridge files ==="
           ls -la flutter/lib/generated_bridge.dart flutter/lib/bridge_definitions.dart src/bridge_generated.rs src/bridge_generated.io.rs
+          echo "=== Freezed files ==="
+          ls -la flutter/lib/*.freezed.dart || true
 
       - name: Install build runtime
         run: |
