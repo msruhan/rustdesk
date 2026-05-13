@@ -46,6 +46,20 @@ jobs:
             --dart-output ./lib/generated_bridge.dart \
             --dart-decl-output ./lib/bridge_definitions.dart \
             --rust-output ../src/bridge_generated.rs
+          python3 - <<'PY'
+          from pathlib import Path
+
+          generated_bridge = Path("./lib/generated_bridge.dart")
+          text = generated_bridge.read_text()
+          bridge_export = 'export "bridge_definitions.dart";\n'
+          bridge_import = 'import "bridge_definitions.dart";\n'
+
+          if bridge_export not in text:
+              if bridge_import not in text:
+                  raise RuntimeError(f"{bridge_import.strip()} not found in {generated_bridge}")
+              text = text.replace(bridge_import, bridge_import + bridge_export, 1)
+              generated_bridge.write_text(text)
+          PY
           dart run build_runner build --delete-conflicting-outputs
         working-directory: flutter
 
