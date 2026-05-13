@@ -8,10 +8,15 @@ on:
 
 env:
   APP_NAME: indodesk
+  FLUTTER_VERSION: "3.24.5"
+  LLVM_VERSION: "15.0.6"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VERSION: "1.4.6"
 
 jobs:
-  build-windows:
-    runs-on: windows-2022
+  generate-bridge:
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,94 +26,179 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          targets: x86_64-pc-windows-msvc
+          toolchain: "1.75"
+
+      - name: Install flutter_rust_bridge_codegen
+        run: cargo install flutter_rust_bridge_codegen --version 1.80.1 --locked
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
 
-      - name: Install vcpkg dependencies
-        shell: cmd
-        run: |
-          C:\vcpkg\vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static --classic
-        env:
-          VCPKG_ROOT: C:\vcpkg
-          VCPKG_DISABLE_METRICS: 1
-
-      - name: Build Flutter Windows
+      - name: Generate bridge
         run: |
           flutter pub get
-          flutter build windows --release
+          ~/.cargo/bin/flutter_rust_bridge_codegen \
+            --rust-input ./src/flutter_ffi.rs \
+            --dart-output ./flutter/lib/generated_bridge.dart
         working-directory: flutter
+
+      - name: Upload bridge artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-artifact
+          path: |
+            ./flutter/lib/generated_bridge.dart
+            ./flutter/lib/bridge_definitions.dart
+
+  build-windows:
+    needs: [generate-bridge]
+    runs-on: windows-2022
+    steps:
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Restore bridge files
+        uses: actions/download-artifact@master
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.75"
+          targets: x86_64-pc-windows-msvc
+          components: "rustfmt"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2.12.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+
+      - name: Setup vcpkg with Github Actions binary cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
         env:
-          VCPKG_ROOT: C:\vcpkg
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        shell: bash
+        run: |
+          if ! $VCPKG_ROOT/vcpkg \
+            install \
+            --triplet x64-windows-static \
+            --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
+              echo "$_1:"
+              cat "$_1"
+            done
+            exit 1
+          fi
+
+      - name: Build rustdesk
+        run: |
+          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
+          mv ./flutter/build/windows/x64/runner/Release ./indodesk
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: IndoDesk-Windows
-          path: flutter/build/windows/x64/runner/Release/
+          path: ./indodesk/
 
   build-macos:
-    runs-on: macos-latest
+    needs: [generate-bridge]
+    runs-on: macos-14
     steps:
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Restore bridge files
+        uses: actions/download-artifact@master
         with:
-          toolchain: stable
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          name: bridge-artifact
+          path: ./
 
-      - name: Setup Flutter
+      - name: Install build runtime
+        run: |
+          brew install llvm create-dmg nasm yasm cmake pkg-config
+
+      - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.81"
+          targets: aarch64-apple-darwin
+          components: "rustfmt"
 
-      - name: Install system dependencies
-        run: |
-          brew install nasm yasm cmake pkg-config
-
-      - name: Setup vcpkg
-        run: |
-          git clone https://github.com/microsoft/vcpkg $HOME/vcpkg
-          $HOME/vcpkg/bootstrap-vcpkg.sh
-          echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
+      - name: Setup vcpkg with Github Actions binary cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
 
       - name: Install vcpkg dependencies
         run: |
-          $HOME/vcpkg/vcpkg install libvpx libyuv opus aom --classic --triplet arm64-osx
-          $HOME/vcpkg/vcpkg install libvpx libyuv opus aom --classic --triplet x64-osx
-        env:
-          VCPKG_ROOT: $HOME/vcpkg
-          VCPKG_DISABLE_METRICS: 1
+          if ! $VCPKG_ROOT/vcpkg \
+            install \
+            --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
+              echo "$_1:"
+              cat "$_1"
+            done
+            exit 1
+          fi
 
-      - name: Build Rust library
+      - name: Build rustdesk
         run: |
-          export PKG_CONFIG_PATH="$HOME/vcpkg/installed/arm64-osx/lib/pkgconfig:$HOME/vcpkg/installed/x64-osx/lib/pkgconfig"
-          export OPUS_INCLUDE_DIR="$HOME/vcpkg/installed/arm64-osx/include"
-          export OPUS_LIB_DIR="$HOME/vcpkg/installed/arm64-osx/lib"
-          cargo build --release
-        env:
-          VCPKG_ROOT: $HOME/vcpkg
-          VCPKG_INSTALLED_DIR: $HOME/vcpkg/installed
+          ./build.py --flutter --hwcodec --screencapturekit
 
-      - name: Build Flutter macOS
+      - name: Create DMG
         run: |
-          flutter pub get
-          flutter build macos --release
-        working-directory: flutter
-        env:
-          VCPKG_ROOT: $HOME/vcpkg
+          create-dmg --icon "RustDesk.app" 200 190 \
+            --hide-extension "RustDesk.app" \
+            --window-size 800 400 \
+            --app-drop-link 600 185 \
+            indodesk-${{ env.VERSION }}-aarch64.dmg \
+            ./flutter/build/macos/Build/Products/Release/RustDesk.app
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: IndoDesk-macOS
-          path: flutter/build/macos/Build/Products/Release/
+          path: indodesk-${{ env.VERSION }}-aarch64.dmg
