@@ -33,8 +33,7 @@ jobs:
       - name: Install vcpkg dependencies
         shell: cmd
         run: |
-          cd C:\
-          C:\vcpkg\vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+          C:\vcpkg\vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static --classic
         env:
           VCPKG_ROOT: C:\vcpkg
           VCPKG_DISABLE_METRICS: 1
