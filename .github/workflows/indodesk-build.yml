@@ -187,6 +187,8 @@ jobs:
           fi
 
       - name: Build rustdesk
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
         run: |
           ./build.py --flutter --hwcodec --screencapturekit
 
