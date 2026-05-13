@@ -274,14 +274,21 @@ jobs:
         run: |
           ./build.py --flutter --hwcodec --screencapturekit
 
+      - name: Ad-hoc codesign IndoDesk.app
+        run: |
+          codesign --force --deep --sign - \
+            ./flutter/build/macos/Build/Products/Release/IndoDesk.app
+          codesign --verify --deep --strict \
+            ./flutter/build/macos/Build/Products/Release/IndoDesk.app || true
+
       - name: Create DMG
         run: |
-          create-dmg --icon "RustDesk.app" 200 190 \
-            --hide-extension "RustDesk.app" \
+          create-dmg --icon "IndoDesk.app" 200 190 \
+            --hide-extension "IndoDesk.app" \
             --window-size 800 400 \
             --app-drop-link 600 185 \
             indodesk-${{ env.VERSION }}-aarch64.dmg \
-            ./flutter/build/macos/Build/Products/Release/RustDesk.app
+            ./flutter/build/macos/Build/Products/Release/IndoDesk.app
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
