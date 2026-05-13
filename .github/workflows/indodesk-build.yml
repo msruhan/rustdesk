@@ -30,13 +30,13 @@ jobs:
           flutter-version: '3.19.6'
           channel: 'stable'
 
-      - name: Setup vcpkg
+      - name: Install vcpkg dependencies
         run: |
-          $vcpkg = "C:\vcpkg"
-          git clone https://github.com/microsoft/vcpkg $vcpkg
-          & "$vcpkg\bootstrap-vcpkg.bat"
-          & "$vcpkg\vcpkg" install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
-          echo "VCPKG_ROOT=$vcpkg" >> $env:GITHUB_ENV
+          cd $HOME
+          $HOME/vcpkg/vcpkg install libvpx libyuv opus aom --triplet x64-osx --overlay-triplets=$HOME/vcpkg/triplets
+        env:
+          VCPKG_ROOT: $HOME/vcpkg
+          VCPKG_DISABLE_METRICS: 1
 
       - name: Build Flutter Windows
         run: |
@@ -84,9 +84,11 @@ jobs:
 
       - name: Install vcpkg dependencies
         run: |
-          $HOME/vcpkg/vcpkg install libvpx libyuv opus aom
+          cd $HOME
+          $HOME/vcpkg/vcpkg install libvpx libyuv opus aom --triplet x64-osx --overlay-triplets=$HOME/vcpkg/triplets
         env:
           VCPKG_ROOT: $HOME/vcpkg
+          VCPKG_DISABLE_METRICS: 1
 
       - name: Build Rust library
         run: |
