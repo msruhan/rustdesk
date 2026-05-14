@@ -198,7 +198,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         children: [
           Container(
             width: 2,
-            decoration: const BoxDecoration(color: MyTheme.accent),
+            decoration: BoxDecoration(color: MyTheme.accent),
           ).marginOnly(top: 5),
           Expanded(
             child: Padding(
@@ -609,10 +609,15 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                   gradient: LinearGradient(
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
-                colors: [
-                  Color.fromARGB(255, 226, 66, 188),
-                  Color.fromARGB(255, 244, 114, 124),
-                ],
+                colors: (isDesktop && (isWindows || isMacOS))
+                    ? [
+                        Color.lerp(MyTheme.accent, Colors.black, 0.42)!,
+                        Color.lerp(MyTheme.accent, const Color(0xFF86EFAC), 0.35)!,
+                      ]
+                    : [
+                        Color.fromARGB(255, 226, 66, 188),
+                        Color.fromARGB(255, 244, 114, 124),
+                      ],
               )),
               padding: EdgeInsets.all(20),
               child: Column(

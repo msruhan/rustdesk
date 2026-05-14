@@ -250,27 +250,66 @@ class ColorThemeExtension extends ThemeExtension<ColorThemeExtension> {
 class MyTheme {
   MyTheme._();
 
-  static const Color grayBg = Color(0xFFEFEFF2);
-  static const Color accent = Color(0xFF0071FF);
-  static const Color accent50 = Color(0x770071FF);
-  static const Color accent80 = Color(0xAA0071FF);
+  /// Windows/macOS desktop: native fonts + IndoDesk green palette (see `src/assets/desktop.png`).
+  static bool get _refinedDesktop => isDesktop && (isWindows || isMacOS);
+
+  static double get _buttonRadius =>
+      _refinedDesktop ? (isWindows ? 4.0 : 9.0) : 8.0;
+
+  static double get _inputRadius =>
+      _refinedDesktop ? (isWindows ? 4.0 : 8.0) : 8.0;
+
+  static String? get _desktopFontFamily =>
+      _refinedDesktop ? (isWindows ? 'Segoe UI' : '.AppleSystemUIFont') : null;
+
+  static TextTheme _applyDesktopFont(TextTheme base) {
+    final ff = _desktopFontFamily;
+    if (ff == null) return base;
+    return base.apply(fontFamily: ff);
+  }
+
+  static const Color _grayBgDefault = Color(0xFFEFEFF2);
+  static Color get grayBg => _refinedDesktop
+      ? (isWindows ? const Color(0xFFF4FAF4) : const Color(0xFFF5FAF5))
+      : _grayBgDefault;
+
+  /// Brand green (icon `src/assets/desktop.png` ~#1A6600); slightly tuned per OS.
+  static Color _accentForPlatform() {
+    if (isDesktop && isWindows) return const Color(0xFF166534);
+    if (isDesktop && isMacOS) return const Color(0xFF1A6600);
+    return const Color(0xFF1A6600);
+  }
+
+  static final Color accent = _accentForPlatform();
+  static final Color accent50 = accent.withOpacity(0.47);
+  static final Color accent80 = accent.withOpacity(0.67);
   static const Color canvasColor = Color(0xFF212121);
   static const Color border = Color(0xFFCCCCCC);
-  static const Color idColor = Color(0xFF00B6F0);
+  static final Color idColor = _refinedDesktop
+      ? (isWindows ? const Color(0xFF22C55E) : const Color(0xFF4ADE80))
+      : const Color(0xFF22C55E);
   static const Color darkGray = Color.fromARGB(255, 148, 148, 148);
-  static const Color cmIdColor = Color(0xFF21790B);
+  static const Color cmIdColor = Color(0xFF22C55E);
   static const Color dark = Colors.black87;
-  static const Color button = Color(0xFF2C8CFF);
+  static final Color button = _refinedDesktop ? accent : const Color(0xFF1A6600);
   static const Color hoverBorder = Color(0xFF999999);
 
+  static Color get _darkScaffold => !_refinedDesktop
+      ? const Color(0xFF18191E)
+      : (isWindows ? const Color(0xFF141916) : const Color(0xFF121814));
+
+  static Color get _darkCard => !_refinedDesktop
+      ? const Color(0xFF24252B)
+      : (isWindows ? const Color(0xFF1E2520) : const Color(0xFF1C221E));
+
   // ListTile
-  static const ListTileThemeData listTileTheme = ListTileThemeData(
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.all(
-        Radius.circular(5),
-      ),
-    ),
-  );
+  static ListTileThemeData get listTileTheme => ListTileThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(
+            Radius.circular(_refinedDesktop ? (isWindows ? 6.0 : 8.0) : 5.0),
+          ),
+        ),
+      );
 
   static SwitchThemeData switchTheme() {
     return SwitchThemeData(
@@ -283,14 +322,14 @@ class MyTheme {
   }
 
   // Checkbox
-  static const CheckboxThemeData checkboxTheme = CheckboxThemeData(
-    splashRadius: 0,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.all(
-        Radius.circular(5),
-      ),
-    ),
-  );
+  static CheckboxThemeData get checkboxTheme => CheckboxThemeData(
+        splashRadius: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(
+            Radius.circular(_refinedDesktop ? (isWindows ? 6.0 : 8.0) : 5.0),
+          ),
+        ),
+      );
 
   // TextButton
   // Value is used to calculate "dialog.actionsPadding"
@@ -371,12 +410,12 @@ class MyTheme {
     }),
   );
 
-  static ThemeData lightTheme = ThemeData(
+  static ThemeData get lightTheme => ThemeData(
     // https://stackoverflow.com/questions/77537315/after-upgrading-to-flutter-3-16-the-app-bar-background-color-button-size-and
     useMaterial3: false,
     brightness: Brightness.light,
     hoverColor: Color.fromARGB(255, 224, 224, 224),
-    scaffoldBackgroundColor: Colors.white,
+    scaffoldBackgroundColor: _refinedDesktop ? grayBg : Colors.white,
     dialogBackgroundColor: Colors.white,
     appBarTheme: AppBarTheme(
       shadowColor: Colors.transparent,
@@ -398,17 +437,20 @@ class MyTheme {
             filled: true,
             isDense: true,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(_inputRadius),
             ),
           )
         : null,
-    textTheme: const TextTheme(
-        titleLarge: TextStyle(fontSize: 19, color: Colors.black87),
-        titleSmall: TextStyle(fontSize: 14, color: Colors.black87),
-        bodySmall: TextStyle(fontSize: 12, color: Colors.black87, height: 1.25),
-        bodyMedium:
-            TextStyle(fontSize: 14, color: Colors.black87, height: 1.25),
-        labelLarge: TextStyle(fontSize: 16.0, color: MyTheme.accent80)),
+    textTheme: _applyDesktopFont(
+        TextTheme(
+            titleLarge: TextStyle(fontSize: 19, color: Colors.black87),
+            titleSmall: TextStyle(fontSize: 14, color: Colors.black87),
+            bodySmall:
+                TextStyle(fontSize: 12, color: Colors.black87, height: 1.25),
+            bodyMedium:
+                TextStyle(fontSize: 14, color: Colors.black87, height: 1.25),
+            labelLarge: TextStyle(fontSize: 16.0, color: MyTheme.accent80),
+        )),
     cardColor: grayBg,
     hintColor: Color(0xFFAAAAAA),
     visualDensity: VisualDensity.adaptivePlatformDensity,
@@ -423,6 +465,7 @@ class MyTheme {
         ? TextButtonThemeData(
             style: TextButton.styleFrom(
               splashFactory: NoSplash.splashFactory,
+              foregroundColor: MyTheme.accent,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18.0),
               ),
@@ -432,8 +475,16 @@ class MyTheme {
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: MyTheme.accent,
+        foregroundColor: Colors.white,
+        elevation: _refinedDesktop ? 0 : 2,
+        minimumSize: _refinedDesktop
+            ? const Size(88, 36)
+            : null,
+        padding: _refinedDesktop
+            ? const EdgeInsets.symmetric(horizontal: 16, vertical: 10)
+            : null,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0),
+          borderRadius: BorderRadius.circular(_buttonRadius),
         ),
       ),
     ),
@@ -441,8 +492,11 @@ class MyTheme {
       style: OutlinedButton.styleFrom(
         backgroundColor: grayBg,
         foregroundColor: Colors.black87,
+        side: _refinedDesktop
+            ? BorderSide(color: border, width: 1)
+            : null,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0),
+          borderRadius: BorderRadius.circular(_buttonRadius),
         ),
       ),
     ),
@@ -454,7 +508,11 @@ class MyTheme {
         style:
             MenuStyle(backgroundColor: MaterialStatePropertyAll(Colors.white))),
     colorScheme: ColorScheme.light(
-        primary: Colors.blue, secondary: accent, background: grayBg),
+        primary: accent,
+        onPrimary: Colors.white,
+        secondary: accent,
+        surface: Colors.white,
+        background: grayBg),
     popupMenuTheme: PopupMenuThemeData(
         color: Colors.white,
         shape: RoundedRectangleBorder(
@@ -470,12 +528,12 @@ class MyTheme {
       TabbarTheme.light,
     ],
   );
-  static ThemeData darkTheme = ThemeData(
+  static ThemeData get darkTheme => ThemeData(
     useMaterial3: false,
     brightness: Brightness.dark,
     hoverColor: Color.fromARGB(255, 45, 46, 53),
-    scaffoldBackgroundColor: Color(0xFF18191E),
-    dialogBackgroundColor: Color(0xFF18191E),
+    scaffoldBackgroundColor: _darkScaffold,
+    dialogBackgroundColor: _darkScaffold,
     appBarTheme: AppBarTheme(
       shadowColor: Colors.transparent,
     ),
@@ -485,33 +543,35 @@ class MyTheme {
         borderRadius: BorderRadius.circular(18.0),
         side: BorderSide(
           width: 1,
-          color: Color(0xFF24252B),
+          color: _darkCard,
         ),
       ),
     ),
     scrollbarTheme: scrollbarThemeDark,
     inputDecorationTheme: (isDesktop || isWebDesktop)
         ? InputDecorationTheme(
-            fillColor: Color(0xFF24252B),
+            fillColor: _darkCard,
             filled: true,
             isDense: true,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(_inputRadius),
             ),
           )
         : null,
-    textTheme: const TextTheme(
-      titleLarge: TextStyle(fontSize: 19),
-      titleSmall: TextStyle(fontSize: 14),
-      bodySmall: TextStyle(fontSize: 12, height: 1.25),
-      bodyMedium: TextStyle(fontSize: 14, height: 1.25),
-      labelLarge: TextStyle(
-        fontSize: 16.0,
-        fontWeight: FontWeight.bold,
-        color: accent80,
-      ),
-    ),
-    cardColor: Color(0xFF24252B),
+    textTheme: _applyDesktopFont(
+        TextTheme(
+          titleLarge: TextStyle(fontSize: 19, color: Colors.white),
+          titleSmall: TextStyle(fontSize: 14, color: Colors.white70),
+          bodySmall: TextStyle(fontSize: 12, height: 1.25, color: Colors.white70),
+          bodyMedium:
+              TextStyle(fontSize: 14, height: 1.25, color: Colors.white70),
+          labelLarge: TextStyle(
+            fontSize: 16.0,
+            fontWeight: FontWeight.bold,
+            color: accent80,
+          ),
+        )),
+    cardColor: _darkCard,
     visualDensity: VisualDensity.adaptivePlatformDensity,
     tabBarTheme: const TabBarTheme(
       labelColor: Colors.white70,
@@ -525,7 +585,8 @@ class MyTheme {
             style: TextButton.styleFrom(
               splashFactory: NoSplash.splashFactory,
               disabledForegroundColor: Colors.white70,
-              foregroundColor: Colors.white70,
+              foregroundColor:
+                  _refinedDesktop ? MyTheme.accent : Colors.white70,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18.0),
               ),
@@ -538,19 +599,26 @@ class MyTheme {
         foregroundColor: Colors.white,
         disabledForegroundColor: Colors.white70,
         disabledBackgroundColor: Colors.white10,
+        elevation: _refinedDesktop ? 0 : 2,
+        minimumSize: _refinedDesktop
+            ? const Size(88, 36)
+            : null,
+        padding: _refinedDesktop
+            ? const EdgeInsets.symmetric(horizontal: 16, vertical: 10)
+            : null,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0),
+          borderRadius: BorderRadius.circular(_buttonRadius),
         ),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        backgroundColor: Color(0xFF24252B),
+        backgroundColor: _darkCard,
         side: BorderSide(color: Colors.white12, width: 0.5),
         disabledForegroundColor: Colors.white70,
         foregroundColor: Colors.white70,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0),
+          borderRadius: BorderRadius.circular(_buttonRadius),
         ),
       ),
     ),
@@ -560,11 +628,14 @@ class MyTheme {
     listTileTheme: listTileTheme,
     menuBarTheme: MenuBarThemeData(
         style: MenuStyle(
-            backgroundColor: MaterialStatePropertyAll(Color(0xFF121212)))),
+            backgroundColor:
+                MaterialStatePropertyAll(_refinedDesktop ? _darkScaffold : Color(0xFF121212)))),
     colorScheme: ColorScheme.dark(
-      primary: Colors.blue,
+      primary: accent,
+      onPrimary: Colors.white,
       secondary: accent,
-      background: Color(0xFF24252B),
+      surface: _darkCard,
+      background: _darkScaffold,
     ),
     popupMenuTheme: PopupMenuThemeData(
         shape: RoundedRectangleBorder(

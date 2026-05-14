@@ -124,16 +124,15 @@ dependency_overrides:
   intl: ^0.19.0
   flutter_plugin_android_lifecycle: 2.0.17
 
-# rerun: flutter pub run flutter_launcher_icons
+# rerun: dart run flutter_launcher_icons (uses ../src/assets/desktop.png)
 flutter_icons:
-  image_path: "../res/icon.png"
+  image_path: "../src/assets/desktop.png"
   remove_alpha_ios: true
   android: true
   ios: true
   windows:
     generate: true
   macos:
-    image_path: "../res/mac-icon.png"
     generate: true
   linux: true
   web:

@@ -24,7 +24,7 @@ import '../../common/widgets/dialog.dart';
 import '../../models/platform_model.dart';
 
 class _MenuTheme {
-  static const Color blueColor = MyTheme.button;
+  static final Color blueColor = MyTheme.button;
   // kMinInteractiveDimension
   static const double height = 20.0;
   static const double dividerHeight = 12.0;
