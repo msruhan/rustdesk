@@ -60,15 +60,156 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   Widget build(BuildContext context) {
     super.build(context);
     final isIncomingOnly = bind.isIncomingOnly();
+    final isOutgoingOnly = bind.isOutgoingOnly();
+    final useCommandBarHome = !isIncomingOnly && !isOutgoingOnly;
+
+    if (!useCommandBarHome) {
+      return _buildBlock(
+          child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          buildLeftPane(context),
+          if (!isIncomingOnly) const VerticalDivider(width: 1),
+          if (!isIncomingOnly)
+            Expanded(
+                child: buildRightPane(context,
+                    homeCommandBarLayout: false)),
+        ],
+      ));
+    }
+
     return _buildBlock(
-        child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        buildLeftPane(context),
-        if (!isIncomingOnly) const VerticalDivider(width: 1),
-        if (!isIncomingOnly) Expanded(child: buildRightPane(context)),
-      ],
-    ));
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildTopIdentityStrip(context),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildLeftAuxPane(context),
+                const VerticalDivider(width: 1),
+                Expanded(
+                    child:
+                        buildRightPane(context, homeCommandBarLayout: true)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHelpCardsFuture(BuildContext context) {
+    final isIncomingOnly = bind.isIncomingOnly();
+    return FutureBuilder<Widget>(
+      future: Future.value(
+          Obx(() => buildHelpCards(stateGlobal.updateUrl.value))),
+      builder: (_, data) {
+        if (data.hasData) {
+          if (isIncomingOnly) {
+            if (isInHomePage()) {
+              Future.delayed(Duration(milliseconds: 300), () {
+                _updateWindowSize();
+              });
+            }
+          }
+          return data.data!;
+        } else {
+          return const Offstage();
+        }
+      },
+    );
+  }
+
+  /// Top strip: branding + local ID + one-time password (desktop home layout #1).
+  Widget _buildTopIdentityStrip(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: Theme.of(context).dividerColor,
+              width: 1,
+            ),
+          ),
+        ),
+        child: ChangeNotifierProvider.value(
+          value: gFFI.serverModel,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: FittedBox(
+                        fit: BoxFit.contain,
+                        child: loadLogo(),
+                      ),
+                    ),
+                    if (bind.isCustomClient())
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: loadPowered(context),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 5,
+                  child: buildIDBoard(context, compact: true),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 5,
+                  child: buildPasswordBoard(context, compact: true),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Left column for tips, permissions cards, and plugins (no ID/password — those are in the top strip).
+  Widget _buildLeftAuxPane(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: gFFI.serverModel,
+      child: Container(
+        width: 220.0,
+        color: Theme.of(context).colorScheme.background,
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _leftPaneScrollController,
+                child: Column(
+                  key: _childKey,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    buildPresetPasswordWarning(),
+                    buildTip(context),
+                    _buildHelpCardsFuture(context),
+                    buildPluginEntry(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildBlock({required Widget child}) {
@@ -93,24 +234,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       buildTip(context),
       if (!isOutgoingOnly) buildIDBoard(context),
       if (!isOutgoingOnly) buildPasswordBoard(context),
-      FutureBuilder<Widget>(
-        future: Future.value(
-            Obx(() => buildHelpCards(stateGlobal.updateUrl.value))),
-        builder: (_, data) {
-          if (data.hasData) {
-            if (isIncomingOnly) {
-              if (isInHomePage()) {
-                Future.delayed(Duration(milliseconds: 300), () {
-                  _updateWindowSize();
-                });
-              }
-            }
-            return data.data!;
-          } else {
-            return const Offstage();
-          }
-        },
-      ),
+      _buildHelpCardsFuture(context),
       buildPluginEntry(),
     ];
     if (isIncomingOnly) {
@@ -180,18 +304,19 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     );
   }
 
-  buildRightPane(BuildContext context) {
+  Widget buildRightPane(BuildContext context,
+      {bool homeCommandBarLayout = false}) {
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
-      child: ConnectionPage(),
+      child: ConnectionPage(homeCommandBarLayout: homeCommandBarLayout),
     );
   }
 
-  buildIDBoard(BuildContext context) {
+  Widget buildIDBoard(BuildContext context, {bool compact = false}) {
     final model = gFFI.serverModel;
     return Container(
-      margin: const EdgeInsets.only(left: 20, right: 11),
-      height: 57,
+      margin: EdgeInsets.only(left: compact ? 8 : 20, right: compact ? 8 : 11),
+      height: compact ? 50 : 57,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.baseline,
         textBaseline: TextBaseline.alphabetic,
@@ -199,7 +324,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           Container(
             width: 2,
             decoration: BoxDecoration(color: MyTheme.accent),
-          ).marginOnly(top: 5),
+          ).marginOnly(top: compact ? 3 : 5),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(left: 7),
@@ -207,7 +332,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    height: 25,
+                    height: compact ? 22 : 25,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,13 +340,13 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                         Text(
                           translate("ID"),
                           style: TextStyle(
-                              fontSize: 14,
+                              fontSize: compact ? 12 : 14,
                               color: Theme.of(context)
                                   .textTheme
                                   .titleLarge
                                   ?.color
                                   ?.withOpacity(0.5)),
-                        ).marginOnly(top: 5),
+                        ).marginOnly(top: compact ? 2 : 5),
                         buildPopupMenu(context)
                       ],
                     ),
@@ -238,10 +363,12 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                         readOnly: true,
                         decoration: InputDecoration(
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.only(top: 10, bottom: 10),
+                          contentPadding: EdgeInsets.only(
+                              top: compact ? 4 : 10,
+                              bottom: compact ? 4 : 10),
                         ),
                         style: TextStyle(
-                          fontSize: 22,
+                          fontSize: compact ? 18 : 22,
                         ),
                       ).workaroundFreezeLinuxMint(),
                     ),
@@ -280,31 +407,34 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     );
   }
 
-  buildPasswordBoard(BuildContext context) {
+  Widget buildPasswordBoard(BuildContext context, {bool compact = false}) {
     return ChangeNotifierProvider.value(
         value: gFFI.serverModel,
         child: Consumer<ServerModel>(
           builder: (context, model, child) {
-            return buildPasswordBoard2(context, model);
+            return buildPasswordBoard2(context, model, compact: compact);
           },
         ));
   }
 
-  buildPasswordBoard2(BuildContext context, ServerModel model) {
+  Widget buildPasswordBoard2(BuildContext context, ServerModel model,
+      {bool compact = false}) {
     RxBool refreshHover = false.obs;
     RxBool editHover = false.obs;
     final textColor = Theme.of(context).textTheme.titleLarge?.color;
     final showOneTime = model.approveMode != 'click' &&
         model.verificationMethod != kUsePermanentPassword;
     return Container(
-      margin: EdgeInsets.only(left: 20.0, right: 16, top: 13, bottom: 13),
+      margin: compact
+          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
+          : EdgeInsets.only(left: 20.0, right: 16, top: 13, bottom: 13),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.baseline,
         textBaseline: TextBaseline.alphabetic,
         children: [
           Container(
             width: 2,
-            height: 52,
+            height: compact ? 44 : 52,
             decoration: BoxDecoration(color: MyTheme.accent),
           ),
           Expanded(
@@ -316,7 +446,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                   AutoSizeText(
                     translate("One-time Password"),
                     style: TextStyle(
-                        fontSize: 14, color: textColor?.withOpacity(0.5)),
+                        fontSize: compact ? 11 : 14,
+                        color: textColor?.withOpacity(0.5)),
                     maxLines: 1,
                   ),
                   Row(
@@ -335,10 +466,11 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                             readOnly: true,
                             decoration: InputDecoration(
                               border: InputBorder.none,
-                              contentPadding:
-                                  EdgeInsets.only(top: 14, bottom: 10),
+                              contentPadding: EdgeInsets.only(
+                                  top: compact ? 6 : 14,
+                                  bottom: compact ? 4 : 10),
                             ),
-                            style: TextStyle(fontSize: 15),
+                            style: TextStyle(fontSize: compact ? 13 : 15),
                           ).workaroundFreezeLinuxMint(),
                         ),
                       ),

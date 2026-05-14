@@ -143,7 +143,12 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
 
 /// Connection page for connecting to a remote peer.
 class ConnectionPage extends StatefulWidget {
-  const ConnectionPage({Key? key}) : super(key: key);
+  /// When true (desktop home command-bar layout), the remote ID card spans
+  /// the full width of the right pane instead of a fixed narrow card.
+  final bool homeCommandBarLayout;
+
+  const ConnectionPage({Key? key, this.homeCommandBarLayout = false})
+      : super(key: key);
 
   @override
   State<ConnectionPage> createState() => _ConnectionPageState();
@@ -258,6 +263,7 @@ class _ConnectionPageState extends State<ConnectionPage>
   @override
   Widget build(BuildContext context) {
     final isOutgoingOnly = bind.isOutgoingOnly();
+    final barLayout = widget.homeCommandBarLayout;
     return Column(
       children: [
         Expanded(
@@ -265,14 +271,16 @@ class _ConnectionPageState extends State<ConnectionPage>
           children: [
             Row(
               children: [
-                Flexible(child: _buildRemoteIDTextField(context)),
+                barLayout
+                    ? Expanded(child: _buildRemoteIDTextField(context))
+                    : Flexible(child: _buildRemoteIDTextField(context)),
               ],
-            ).marginOnly(top: 22),
-            SizedBox(height: 12),
+            ).marginOnly(top: barLayout ? 8 : 22),
+            SizedBox(height: barLayout ? 8 : 12),
             Divider().paddingOnly(right: 12),
             Expanded(child: PeerTabPage()),
           ],
-        ).paddingOnly(left: 12.0)),
+        ).paddingOnly(left: 12.0, right: barLayout ? 12.0 : 0.0)),
         if (!isOutgoingOnly) const Divider(height: 1),
         if (!isOutgoingOnly) OnlineStatusWidget()
       ],
@@ -295,9 +303,14 @@ class _ConnectionPageState extends State<ConnectionPage>
   /// UI for the remote ID TextField.
   /// Search for a peer.
   Widget _buildRemoteIDTextField(BuildContext context) {
+    final barLayout = widget.homeCommandBarLayout;
+    final optionsMaxWidth = barLayout
+        ? (MediaQuery.sizeOf(context).width * 0.42).clamp(260.0, 520.0)
+        : 319.0;
     var w = Container(
-      width: 320 + 20 * 2,
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
+      width: barLayout ? double.infinity : (320 + 20 * 2),
+      padding: EdgeInsets.fromLTRB(
+          barLayout ? 16 : 20, barLayout ? 16 : 24, barLayout ? 16 : 20, barLayout ? 14 : 22),
       decoration: BoxDecoration(
           borderRadius: const BorderRadius.all(Radius.circular(13)),
           border: Border.all(color: Theme.of(context).colorScheme.background)),
@@ -435,7 +448,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                                 child: ConstrainedBox(
                                   constraints: BoxConstraints(
                                     maxHeight: maxHeight,
-                                    maxWidth: 319,
+                                    maxWidth: optionsMaxWidth,
                                   ),
                                   child: _allPeersLoader.peers.isEmpty &&
                                           !_allPeersLoader.isPeersLoaded
@@ -563,6 +576,9 @@ class _ConnectionPageState extends State<ConnectionPage>
         ),
       ),
     );
+    if (barLayout) {
+      return w;
+    }
     return Container(
         constraints: const BoxConstraints(maxWidth: 600), child: w);
   }
