@@ -229,7 +229,7 @@ class _ConnectionPageState extends State<ConnectionPage> {
                         onChanged: (String text) {
                           _idController.id = text;
                         },
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'WorkSans',
                           fontWeight: FontWeight.bold,
                           fontSize: 30,

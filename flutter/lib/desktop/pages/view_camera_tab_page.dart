@@ -314,7 +314,7 @@ class _ViewCameraTabPageState extends State<ViewCameraTabPage> {
       items: menu
           .map((entry) => entry.build(
               context,
-              const MenuConfig(
+              MenuConfig(
                 commonColor: _MenuTheme.blueColor,
                 height: _MenuTheme.height,
                 dividerHeight: _MenuTheme.dividerHeight,

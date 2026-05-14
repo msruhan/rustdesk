@@ -536,7 +536,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                                           ))
                                       .map((e) => e.build(
                                           context,
-                                          const MenuConfig(
+                                          MenuConfig(
                                               commonColor: CustomPopupMenuTheme
                                                   .commonColor,
                                               height:

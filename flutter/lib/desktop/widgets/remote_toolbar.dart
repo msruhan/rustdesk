@@ -2621,7 +2621,8 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
     const double iconSize = 20;
 
     buttonWrapper(VoidCallback? onPressed, Widget child,
-        {Color hoverColor = _ToolbarTheme.blueColor}) {
+        {Color? hoverColor}) {
+      final resolvedHover = hoverColor ?? _ToolbarTheme.blueColor;
       final bgColor = buttonStyle.backgroundColor?.resolve({});
       return TextButton(
         onPressed: onPressed,
@@ -2629,7 +2630,7 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
         style: buttonStyle.copyWith(
           backgroundColor: MaterialStateProperty.resolveWith((states) {
             if (states.contains(MaterialState.hovered)) {
-              return (bgColor ?? hoverColor).withOpacity(0.15);
+              return (bgColor ?? resolvedHover).withOpacity(0.15);
             }
             return bgColor;
           }),

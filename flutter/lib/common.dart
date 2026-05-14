@@ -1001,7 +1001,7 @@ class OverlayDialogManager {
                                   style: flatButtonStyle,
                                   onPressed: cancel,
                                   child: Text(translate('Cancel'),
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           color: MyTheme.accent)))))
                 ])),
         onCancel: showCancel ? cancel : null,
