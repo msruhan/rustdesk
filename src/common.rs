@@ -2081,7 +2081,20 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
     ThrottledInterval::new(i)
 }
 
+pub fn apply_indodesk_build_defaults() {
+    if !is_custom_client() {
+        return;
+    }
+    if let Some(conn_type) = option_env!("INODESK_CONN_TYPE") {
+        config::HARD_SETTINGS
+            .write()
+            .unwrap()
+            .insert("conn-type".to_owned(), conn_type.to_owned());
+    }
+}
+
 pub fn load_custom_client() {
+    apply_indodesk_build_defaults();
     #[cfg(debug_assertions)]
     if let Ok(data) = std::fs::read_to_string("./custom.txt") {
         read_custom_client(data.trim());

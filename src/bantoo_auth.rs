@@ -6,15 +6,27 @@ use hbb_common::{
 };
 use serde_json::json;
 
-fn api_base() -> String {
+const BANTOO_API_DEFAULT: &str = "https://bantoo.in";
+
+pub fn api_base() -> String {
+    if !crate::is_custom_client() {
+        let url = crate::common::get_api_server(
+            Config::get_option("api-server"),
+            Config::get_option("custom-rendezvous-server"),
+        );
+        if url.is_empty() || crate::is_public(&url) {
+            return "".to_owned();
+        }
+        return url;
+    }
     let url = crate::common::get_api_server(
         Config::get_option("api-server"),
         Config::get_option("custom-rendezvous-server"),
     );
-    if url.is_empty() || crate::is_public(&url) {
-        return "".to_owned();
+    if !url.is_empty() && !crate::is_public(&url) {
+        return url;
     }
-    url
+    BANTOO_API_DEFAULT.to_owned()
 }
 
 fn device_token() -> String {
@@ -35,8 +47,7 @@ async fn post_authorize(body: serde_json::Value) -> ResultType<bool> {
     }
     let base = api_base();
     if base.is_empty() {
-        log::warn!("Bantoo api-server not configured; skip authorize");
-        return Ok(true);
+        bail!("Server Bantoo belum dikonfigurasi pada IndoDesk.");
     }
     let token = device_token();
     if token.is_empty() {

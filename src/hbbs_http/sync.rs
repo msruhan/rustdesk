@@ -280,15 +280,19 @@ async fn start_hbbs_sync_async() {
 }
 
 fn heartbeat_url() -> String {
+    if crate::is_custom_client() {
+        let url = crate::bantoo_auth::api_base();
+        if url.is_empty() {
+            return "".to_owned();
+        }
+        return format!("{}/api/indodesk/heartbeat", url);
+    }
     let url = crate::common::get_api_server(
         Config::get_option("api-server"),
         Config::get_option("custom-rendezvous-server"),
     );
     if url.is_empty() || crate::is_public(&url) {
         return "".to_owned();
-    }
-    if crate::is_custom_client() {
-        return format!("{}/api/indodesk/heartbeat", url);
     }
     format!("{}/api/heartbeat", url)
 }
