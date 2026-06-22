@@ -1870,7 +1870,7 @@ impl<T: InvokeUiSession> Interface for Session<T> {
         peer: &mut Stream,
     ) {
         if crate::is_custom_client() && !password.is_empty() {
-            let peer_id = self.lc.read().unwrap().id.clone();
+            let peer_id = self.get_id();
             if let Err(e) = crate::bantoo_auth::authorize_outgoing(&peer_id, &password).await {
                 self.msgbox("error", "IndoDesk", &e.to_string(), "");
                 return;

@@ -2590,7 +2590,7 @@ impl Connection {
                                 crate::bantoo_auth::authorize_incoming(&self.lr.my_id).await
                             {
                                 self.send_login_error(&e.to_string()).await;
-                                return keep_alive;
+                                return true;
                             }
                         }
                         #[cfg(target_os = "linux")]
