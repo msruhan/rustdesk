@@ -105,6 +105,18 @@ jobs:
   build-windows:
     needs: [generate-bridge]
     runs-on: windows-2022
+    strategy:
+      matrix:
+        include:
+          - role: user
+            conn_type: incoming
+            artifact: IndoDesk-User-Windows
+          - role: teknisi
+            conn_type: outgoing
+            artifact: IndoDesk-Teknisi-Windows
+    env:
+      INODESK_CONN_TYPE: ${{ matrix.conn_type }}
+      INODESK_ROLE: ${{ matrix.role }}
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@v6
@@ -187,12 +199,26 @@ jobs:
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: IndoDesk-Windows
+          name: ${{ matrix.artifact }}
           path: ./indodesk/
 
   build-macos:
     needs: [generate-bridge]
     runs-on: macos-14
+    strategy:
+      matrix:
+        include:
+          - role: user
+            conn_type: incoming
+            artifact: IndoDesk-User-macOS
+            dmg: indodesk-user-${{ env.VERSION }}-aarch64.dmg
+          - role: teknisi
+            conn_type: outgoing
+            artifact: IndoDesk-Teknisi-macOS
+            dmg: indodesk-teknisi-${{ env.VERSION }}-aarch64.dmg
+    env:
+      INODESK_CONN_TYPE: ${{ matrix.conn_type }}
+      INODESK_ROLE: ${{ matrix.role }}
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@v6
@@ -287,11 +313,11 @@ jobs:
             --hide-extension "IndoDesk.app" \
             --window-size 800 400 \
             --app-drop-link 600 185 \
-            indodesk-${{ env.VERSION }}-aarch64.dmg \
+            indodesk-${{ matrix.role }}-${{ env.VERSION }}-aarch64.dmg \
             ./flutter/build/macos/Build/Products/Release/IndoDesk.app
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
-          name: IndoDesk-macOS
-          path: indodesk-${{ env.VERSION }}-aarch64.dmg
+          name: ${{ matrix.artifact }}
+          path: indodesk-${{ matrix.role }}-${{ env.VERSION }}-aarch64.dmg

@@ -2585,6 +2585,14 @@ impl Connection {
                 } else {
                     self.update_failure_with_scope(failure, true, 0, FailureScope::Default);
                     if err_msg.is_empty() {
+                        if crate::is_custom_client() {
+                            if let Err(e) =
+                                crate::bantoo_auth::authorize_incoming(&self.lr.my_id).await
+                            {
+                                self.send_login_error(&e.to_string()).await;
+                                return keep_alive;
+                            }
+                        }
                         #[cfg(target_os = "linux")]
                         self.linux_headless_handle.wait_desktop_cm_ready().await;
                         if !self.send_logon_response_and_keep_alive().await {

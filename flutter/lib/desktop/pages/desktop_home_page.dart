@@ -12,6 +12,7 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/connection_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_setting_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
+import 'package:flutter_hbb/desktop/widgets/bantoo_pairing_dialog.dart';
 import 'package:flutter_hbb/desktop/widgets/update_progress.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/server_model.dart';
@@ -199,6 +200,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     buildPresetPasswordWarning(),
+                    if (bind.isCustomClient()) _buildBantooPairingCard(context),
                     buildTip(context),
                     _buildHelpCardsFuture(context),
                     buildPluginEntry(),
@@ -209,6 +211,28 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildBantooPairingCard(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: isBantooPaired(),
+      builder: (context, snap) {
+        final paired = snap.data == true;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: OutlinedButton(
+            onPressed: paired
+                ? null
+                : () => showBantooPairingDialog(context),
+            child: Text(
+              paired
+                  ? translate('Akun Bantoo terhubung')
+                  : translate('Hubungkan akun Bantoo'),
+            ),
+          ),
+        );
+      },
     );
   }
 
