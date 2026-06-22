@@ -211,11 +211,9 @@ jobs:
           - role: user
             conn_type: incoming
             artifact: IndoDesk-User-macOS
-            dmg: indodesk-user-${{ env.VERSION }}-aarch64.dmg
           - role: teknisi
             conn_type: outgoing
             artifact: IndoDesk-Teknisi-macOS
-            dmg: indodesk-teknisi-${{ env.VERSION }}-aarch64.dmg
     env:
       INODESK_CONN_TYPE: ${{ matrix.conn_type }}
       INODESK_ROLE: ${{ matrix.role }}
