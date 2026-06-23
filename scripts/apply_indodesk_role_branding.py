@@ -44,6 +44,10 @@ def main() -> int:
 
     b = BRANDING[role]
     os.environ["INODESK_APP_NAME"] = b["app_name"]
+    github_env = os.environ.get("GITHUB_ENV")
+    if github_env:
+        with open(github_env, "a", encoding="utf-8") as fh:
+            fh.write(f"INODESK_APP_NAME={b['app_name']}\n")
 
     patch_file(
         ROOT / "flutter/macos/Runner/Configs/AppInfo.xcconfig",
