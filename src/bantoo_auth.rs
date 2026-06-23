@@ -125,7 +125,7 @@ pub fn outgoing_plain_password(ui_password: &str, saved_peer_password: &str) -> 
         return ui_password.to_owned();
     }
     if !saved_peer_password.is_empty() {
-        return saved_peer_password;
+        return saved_peer_password.to_owned();
     }
     session_otp()
 }

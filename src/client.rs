@@ -2221,6 +2221,15 @@ impl LoginConfigHandler {
         &mut self.config
     }
 
+    pub fn peer_stored_password_plain(&self) -> String {
+        let bytes = if !self.password.is_empty() {
+            &self.password
+        } else {
+            &self.config.password
+        };
+        String::from_utf8_lossy(bytes).into_owned()
+    }
+
     /// Get [`OptionMessage`] of the current [`LoginConfigHandler`].
     /// Return `None` if there's no option, for example, when the session is only for file transfer.
     ///

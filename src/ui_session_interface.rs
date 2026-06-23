@@ -1871,8 +1871,7 @@ impl<T: InvokeUiSession> Interface for Session<T> {
     ) {
         if crate::is_custom_client() {
             let peer_id = self.get_id();
-            let saved = String::from_utf8_lossy(&self.get_lch().read().unwrap().config.password)
-                .into_owned();
+            let saved = self.get_lch().read().unwrap().peer_stored_password_plain();
             let plain =
                 crate::bantoo_auth::outgoing_plain_password(&password, &saved);
             if let Err(e) = crate::bantoo_auth::gate_outgoing(&peer_id, &plain).await {
