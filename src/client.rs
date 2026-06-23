@@ -3534,6 +3534,41 @@ pub async fn handle_hash(
         return;
     }
 
+    if crate::is_custom_client() && !is_terminal {
+        let plain = crate::bantoo_auth::outgoing_plain_password("", "");
+        if plain.is_empty() {
+            interface.msgbox(
+                "error",
+                "IndoDesk",
+                crate::bantoo_auth::OUTGOING_DENIED,
+                "",
+            );
+            lc.write().unwrap().hash = hash;
+            return;
+        }
+        let peer_id = lc.read().unwrap().id.clone();
+        if let Err(e) = crate::bantoo_auth::gate_outgoing(&peer_id, &plain).await {
+            interface.msgbox("error", "IndoDesk", &e.to_string(), "");
+            lc.write().unwrap().hash = hash;
+            return;
+        }
+        let mut hasher = Sha256::new();
+        hasher.update(plain.as_bytes());
+        hasher.update(&hash.salt);
+        let salted = hasher.finalize()[..].to_vec();
+        let mut hasher2 = Sha256::new();
+        hasher2.update(&salted);
+        hasher2.update(&hash.challenge);
+        let password = hasher2.finalize()[..].to_vec();
+        let (os_username, os_password) = (
+            lc.read().unwrap().get_option("os-username"),
+            lc.read().unwrap().get_option("os-password"),
+        );
+        send_login(lc.clone(), os_username, os_password, password, peer).await;
+        lc.write().unwrap().hash = hash;
+        return;
+    }
+
     let password = if password.is_empty() {
         // login without password, the remote side can click accept
         interface.msgbox("input-password", "Password Required", "", "");

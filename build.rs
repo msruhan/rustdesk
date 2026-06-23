@@ -26,6 +26,7 @@ fn build_mac() {
 fn build_manifest() {
     use std::io::Write;
     if std::env::var("PROFILE").unwrap() == "release" {
+        let (product_name, file_description, original_filename) = indodesk_win_branding();
         let mut res = winres::WindowsResource::new();
         res.set_icon("res/icon.ico")
             .set_language(winapi::um::winnt::MAKELANGID(
@@ -33,6 +34,9 @@ fn build_manifest() {
                 winapi::um::winnt::SUBLANG_ENGLISH_US,
             ))
             .set_manifest_file("res/manifest.xml");
+        res.set("ProductName", &product_name);
+        res.set("FileDescription", &file_description);
+        res.set("OriginalFilename", &original_filename);
         match res.compile() {
             Err(e) => {
                 write!(std::io::stderr(), "{}", e).unwrap();
@@ -91,4 +95,26 @@ fn main() {
         println!("cargo:rustc-link-lib=framework=ApplicationServices");
     }
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-env-changed=INODESK_ROLE");
+}
+
+#[cfg(all(windows, feature = "inline"))]
+fn indodesk_win_branding() -> (String, String, String) {
+    match std::env::var("INODESK_ROLE").unwrap_or_default().as_str() {
+        "user" => (
+            "IndoDesk User".to_owned(),
+            "IndoDesk User Remote Assistance".to_owned(),
+            "indodesk-user.exe".to_owned(),
+        ),
+        "teknisi" => (
+            "IndoDesk Teknisi".to_owned(),
+            "IndoDesk Teknisi Remote Assistance".to_owned(),
+            "indodesk-teknisi.exe".to_owned(),
+        ),
+        _ => (
+            "IndoDesk".to_owned(),
+            "IndoDesk Remote Desktop".to_owned(),
+            "indodesk.exe".to_owned(),
+        ),
+    }
 }

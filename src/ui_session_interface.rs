@@ -1869,9 +1869,13 @@ impl<T: InvokeUiSession> Interface for Session<T> {
         remember: bool,
         peer: &mut Stream,
     ) {
-        if crate::is_custom_client() && !password.is_empty() {
+        if crate::is_custom_client() {
             let peer_id = self.get_id();
-            if let Err(e) = crate::bantoo_auth::authorize_outgoing(&peer_id, &password).await {
+            let saved = String::from_utf8_lossy(&self.get_lch().read().unwrap().config.password)
+                .into_owned();
+            let plain =
+                crate::bantoo_auth::outgoing_plain_password(&password, &saved);
+            if let Err(e) = crate::bantoo_auth::gate_outgoing(&peer_id, &plain).await {
                 self.msgbox("error", "IndoDesk", &e.to_string(), "");
                 return;
             }

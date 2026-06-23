@@ -1012,6 +1012,10 @@ pub fn is_rustdesk() -> bool {
 
 #[inline]
 pub fn get_uri_prefix() -> String {
+    if is_custom_client() {
+        let scheme = option_env!("INODESK_URI_SCHEME").unwrap_or("indodesk");
+        return format!("{scheme}://");
+    }
     format!("{}://", get_app_name().to_lowercase())
 }
 

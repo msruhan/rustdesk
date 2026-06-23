@@ -1537,6 +1537,12 @@ impl Connection {
         if !self.connect_port_forward_if_needed().await {
             return false;
         }
+        if crate::is_custom_client() {
+            if let Err(e) = crate::bantoo_auth::gate_incoming(&self.lr.my_id).await {
+                self.send_login_error(&e.to_string()).await;
+                return true;
+            }
+        }
         self.authorized = true;
         let (conn_type, auth_conn_type) = if self.file_transfer.is_some() {
             (1, AuthConnType::FileTransfer)
@@ -2585,14 +2591,6 @@ impl Connection {
                 } else {
                     self.update_failure_with_scope(failure, true, 0, FailureScope::Default);
                     if err_msg.is_empty() {
-                        if crate::is_custom_client() {
-                            if let Err(e) =
-                                crate::bantoo_auth::authorize_incoming(&self.lr.my_id).await
-                            {
-                                self.send_login_error(&e.to_string()).await;
-                                return true;
-                            }
-                        }
                         #[cfg(target_os = "linux")]
                         self.linux_headless_handle.wait_desktop_cm_ready().await;
                         if !self.send_logon_response_and_keep_alive().await {

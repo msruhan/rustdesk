@@ -6,13 +6,18 @@ on:
     tags:
       - 'v*'
 
+concurrency:
+  group: indodesk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   APP_NAME: indodesk
   FLUTTER_VERSION: "3.24.5"
   LLVM_VERSION: "15.0.6"
   VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
-  VERSION: "1.4.8"
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: "1"
 
 jobs:
   generate-bridge:
@@ -29,19 +34,32 @@ jobs:
           toolchain: "1.81"
           components: rustfmt
 
+      - name: Cache flutter_rust_bridge_codegen
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/flutter_rust_bridge_codegen
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: indodesk-frb-1.80.1-${{ runner.os }}
+
       - name: Install flutter_rust_bridge_codegen
-        run: cargo install flutter_rust_bridge_codegen --version 1.80.1 --locked
+        run: |
+          if ! command -v flutter_rust_bridge_codegen >/dev/null; then
+            cargo install flutter_rust_bridge_codegen --version 1.80.1 --locked
+          fi
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          cache: true
 
       - name: Generate bridge
         run: |
           flutter pub get
-          ~/.cargo/bin/flutter_rust_bridge_codegen \
+          flutter_rust_bridge_codegen \
             --rust-input ../src/flutter_ffi.rs \
             --dart-output ./lib/generated_bridge.dart \
             --dart-decl-output ./lib/bridge_definitions.dart \
@@ -74,8 +92,6 @@ jobs:
           ls -la src/bridge_generated.rs src/bridge_generated.io.rs
           echo "=== macOS bridge header ==="
           ls -la flutter/macos/Runner/bridge_generated.h
-          echo "=== First 5 lines of bridge_generated.rs ==="
-          head -5 src/bridge_generated.rs
 
       - name: Upload dart bridge artifact
         uses: actions/upload-artifact@v4
@@ -106,6 +122,7 @@ jobs:
     needs: [generate-bridge]
     runs-on: windows-2022
     strategy:
+      fail-fast: false
       matrix:
         include:
           - role: user
@@ -117,6 +134,7 @@ jobs:
     env:
       INODESK_CONN_TYPE: ${{ matrix.conn_type }}
       INODESK_ROLE: ${{ matrix.role }}
+      VERSION: ${{ github.ref_name }}
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@v6
@@ -147,8 +165,6 @@ jobs:
         run: |
           echo "=== Checking bridge files ==="
           ls -la flutter/lib/generated_bridge.dart flutter/lib/bridge_definitions.dart src/bridge_generated.rs src/bridge_generated.io.rs
-          echo "=== Freezed files ==="
-          ls -la flutter/lib/*.freezed.dart || true
 
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v1
@@ -162,11 +178,18 @@ jobs:
           targets: x86_64-pc-windows-msvc
           components: "rustfmt"
 
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          shared-key: indodesk-win-${{ matrix.role }}
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2.12.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          cache: true
 
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@v11
@@ -174,6 +197,9 @@ jobs:
           vcpkgDirectory: C:\vcpkg
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           doNotCache: false
+
+      - name: Apply IndoDesk role branding
+        run: python3 scripts/apply_indodesk_role_branding.py
 
       - name: Install vcpkg dependencies
         env:
@@ -206,6 +232,7 @@ jobs:
     needs: [generate-bridge]
     runs-on: macos-14
     strategy:
+      fail-fast: false
       matrix:
         include:
           - role: user
@@ -217,6 +244,7 @@ jobs:
     env:
       INODESK_CONN_TYPE: ${{ matrix.conn_type }}
       INODESK_ROLE: ${{ matrix.role }}
+      VERSION: ${{ github.ref_name }}
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@v6
@@ -250,12 +278,7 @@ jobs:
 
       - name: Verify bridge files
         run: |
-          echo "=== Checking bridge files ==="
-          ls -la flutter/lib/generated_bridge.dart flutter/lib/bridge_definitions.dart src/bridge_generated.rs src/bridge_generated.io.rs
-          echo "=== macOS bridge header ==="
-          ls -la flutter/macos/Runner/bridge_generated.h
-          echo "=== Freezed files ==="
-          ls -la flutter/lib/*.freezed.dart || true
+          ls -la flutter/lib/generated_bridge.dart src/bridge_generated.rs flutter/macos/Runner/bridge_generated.h
 
       - name: Install build runtime
         run: |
@@ -266,6 +289,7 @@ jobs:
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          cache: true
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@v1
@@ -274,11 +298,20 @@ jobs:
           targets: aarch64-apple-darwin
           components: "rustfmt"
 
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          shared-key: indodesk-mac-${{ matrix.role }}
+
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           doNotCache: false
+
+      - name: Apply IndoDesk role branding
+        run: python3 scripts/apply_indodesk_role_branding.py
 
       - name: Install vcpkg dependencies
         run: |
@@ -299,23 +332,28 @@ jobs:
           ./build.py --flutter --hwcodec --screencapturekit
 
       - name: Ad-hoc codesign IndoDesk.app
+        env:
+          INODESK_APP_NAME: ${{ matrix.role == 'user' && 'IndoDesk User' || 'IndoDesk Teknisi' }}
         run: |
           codesign --force --deep --sign - \
-            ./flutter/build/macos/Build/Products/Release/IndoDesk.app
+            "./flutter/build/macos/Build/Products/Release/${INODESK_APP_NAME}.app"
           codesign --verify --deep --strict \
-            ./flutter/build/macos/Build/Products/Release/IndoDesk.app || true
+            "./flutter/build/macos/Build/Products/Release/${INODESK_APP_NAME}.app" || true
 
       - name: Create DMG
+        env:
+          INODESK_APP_NAME: ${{ matrix.role == 'user' && 'IndoDesk User' || 'IndoDesk Teknisi' }}
         run: |
-          create-dmg --icon "IndoDesk.app" 200 190 \
-            --hide-extension "IndoDesk.app" \
+          VERSION="${GITHUB_REF_NAME#v}"
+          create-dmg --icon "${INODESK_APP_NAME}.app" 200 190 \
+            --hide-extension "${INODESK_APP_NAME}.app" \
             --window-size 800 400 \
             --app-drop-link 600 185 \
-            indodesk-${{ matrix.role }}-${{ env.VERSION }}-aarch64.dmg \
-            ./flutter/build/macos/Build/Products/Release/IndoDesk.app
+            "indodesk-${{ matrix.role }}-${VERSION}-aarch64.dmg" \
+            "./flutter/build/macos/Build/Products/Release/${INODESK_APP_NAME}.app"
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: indodesk-${{ matrix.role }}-${{ env.VERSION }}-aarch64.dmg
+          path: indodesk-${{ matrix.role }}-*-aarch64.dmg
