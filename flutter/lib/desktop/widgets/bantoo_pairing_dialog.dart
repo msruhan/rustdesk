@@ -47,7 +47,8 @@ Future<void> showBantooPairingDialog(BuildContext context) async {
               Navigator.pop(ctx, translate('Kode harus 6 digit'));
               return;
             }
-            final api = await bind.mainGetApiServer();
+            final api =
+                (await bind.mainGetApiServer()).replaceAll(RegExp(r'/+$'), '');
             if (api.isEmpty) {
               Navigator.pop(ctx, translate('API server belum dikonfigurasi'));
               return;
@@ -70,7 +71,16 @@ Future<void> showBantooPairingDialog(BuildContext context) async {
                   'platform': platform,
                 }),
               );
-              final json = jsonDecode(resp.body) as Map<String, dynamic>;
+              Map<String, dynamic> json;
+              try {
+                json = jsonDecode(resp.body) as Map<String, dynamic>;
+              } catch (_) {
+                Navigator.pop(
+                  ctx,
+                  translate('Respons server tidak valid (${resp.statusCode})'),
+                );
+                return;
+              }
               if (json['success'] == true &&
                   json['data']?['deviceToken'] != null) {
                 await bind.mainSetLocalOption(
@@ -83,7 +93,10 @@ Future<void> showBantooPairingDialog(BuildContext context) async {
                     ctx, json['error']?.toString() ?? translate('Failed'));
               }
             } catch (e) {
-              Navigator.pop(ctx, translate('Failed'));
+              Navigator.pop(
+                ctx,
+                translate('Gagal menghubungi server Bantoo'),
+              );
             }
           },
           child: Text(translate('OK')),

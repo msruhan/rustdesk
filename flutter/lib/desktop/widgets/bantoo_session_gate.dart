@@ -32,7 +32,7 @@ Future<Map<String, dynamic>?> _bantooJsonRequest(
   String path, {
   Map<String, dynamic>? body,
 }) async {
-  final api = await bind.mainGetApiServer();
+  final api = (await bind.mainGetApiServer()).replaceAll(RegExp(r'/+$'), '');
   if (api.isEmpty) return null;
   final token = await bind.mainGetLocalOption(key: 'bantoo-device-token');
   if (token.isEmpty) return null;

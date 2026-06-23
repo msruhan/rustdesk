@@ -1150,6 +1150,9 @@ pub fn main_discover() {
 }
 
 pub fn main_get_api_server() -> String {
+    if crate::is_custom_client() {
+        return crate::bantoo_auth::api_base();
+    }
     get_api_server()
 }
 
