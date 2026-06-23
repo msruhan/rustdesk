@@ -1,6 +1,7 @@
 use hbb_common::{
     bail,
     config::{Config, LocalConfig},
+    log,
     ResultType,
 };
 use serde_json::json;
