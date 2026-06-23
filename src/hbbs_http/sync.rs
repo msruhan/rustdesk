@@ -35,6 +35,11 @@ pub fn signal_receiver() -> broadcast::Receiver<Vec<i32>> {
 }
 
 #[cfg(not(any(target_os = "ios")))]
+pub fn request_disconnect(conns: Vec<i32>) {
+    let _ = SENDER.lock().unwrap().send(conns);
+}
+
+#[cfg(not(any(target_os = "ios")))]
 fn start_hbbs_sync() -> broadcast::Sender<Vec<i32>> {
     let (tx, _rx) = broadcast::channel::<Vec<i32>>(16);
     std::thread::spawn(move || start_hbbs_sync_async());
@@ -248,6 +253,7 @@ async fn start_hbbs_sync_async() {
                 )
                 .await
                 {
+                    crate::bantoo_auth::handle_heartbeat_response(&s);
                     if let Ok(mut rsp) = serde_json::from_str::<HashMap::<&str, Value>>(&s) {
                         if rsp.remove("sysinfo").is_some() {
                             info_uploaded.uploaded = false;

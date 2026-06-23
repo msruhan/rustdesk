@@ -43,6 +43,8 @@
 	<string>MainMenu</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Record the sound from microphone for the purpose of the remote desktop.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>IndoDesk needs Screen Recording permission to share your desktop during remote assistance sessions.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
     <key>LSUIElement</key>

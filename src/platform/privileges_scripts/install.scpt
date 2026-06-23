@@ -1,14 +1,19 @@
 on run {daemon_file, agent_file, user}
 
-  set sh1 to "echo " & quoted form of daemon_file & " > /Library/LaunchDaemons/com.carriez.RustDesk_service.plist && chown root:wheel /Library/LaunchDaemons/com.carriez.RustDesk_service.plist;"
+  set daemon_plist to "/Library/LaunchDaemons/com.carriez.RustDesk_service.plist"
+  set agent_plist to "/Library/LaunchAgents/com.carriez.RustDesk_server.plist"
+  set prefs_dir to "/Users/" & user & "/Library/Preferences/com.carriez.RustDesk"
+  set root_prefs_dir to "/var/root/Library/Preferences/com.carriez.RustDesk"
 
-  set sh2 to "echo " & quoted form of agent_file & " > /Library/LaunchAgents/com.carriez.RustDesk_server.plist && chown root:wheel /Library/LaunchAgents/com.carriez.RustDesk_server.plist;"
+  set sh1 to "echo " & quoted form of daemon_file & " > " & quoted form of daemon_plist & " && chown root:wheel " & quoted form of daemon_plist & ";"
 
-  set sh3 to "cp -rf /Users/" & user & "/Library/Preferences/com.carriez.RustDesk/RustDesk.toml /var/root/Library/Preferences/com.carriez.RustDesk/;"
+  set sh2 to "echo " & quoted form of agent_file & " > " & quoted form of agent_plist & " && chown root:wheel " & quoted form of agent_plist & ";"
 
-  set sh4 to "cp -rf /Users/" & user & "/Library/Preferences/com.carriez.RustDesk/RustDesk2.toml /var/root/Library/Preferences/com.carriez.RustDesk/;"
+  set sh3 to "mkdir -p " & quoted form of root_prefs_dir & " && cp -rf " & quoted form of (prefs_dir & "/RustDesk.toml") & " " & quoted form of root_prefs_dir & "/;"
 
-  set sh5 to "launchctl load -w /Library/LaunchDaemons/com.carriez.RustDesk_service.plist;"
+  set sh4 to "cp -rf " & quoted form of (prefs_dir & "/RustDesk2.toml") & " " & quoted form of root_prefs_dir & "/;"
+
+  set sh5 to "launchctl load -w " & quoted form of daemon_plist & ";"
 
   set sh to sh1 & sh2 & sh3 & sh4 & sh5
 

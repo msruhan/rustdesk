@@ -2127,6 +2127,10 @@ pub fn main_update_temporary_password() {
     update_temporary_password();
 }
 
+pub fn main_set_temporary_password(password: String) {
+    set_temporary_password(password);
+}
+
 pub fn main_check_super_user_permission() -> bool {
     check_super_user_permission()
 }

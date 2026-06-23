@@ -3376,6 +3376,15 @@ pub fn handle_login_error(
         interface.msgbox("input-password", "Password Required", "", "");
         true
     } else if err == LOGIN_MSG_PASSWORD_WRONG {
+        if crate::is_custom_client() && hbb_common::config::is_outgoing_only() {
+            interface.msgbox(
+                "wait-remote-accept-nook",
+                "Prompt",
+                "Please wait for the remote side to accept your session request...",
+                "",
+            );
+            return true;
+        }
         lc.write().unwrap().password = Default::default();
         interface.msgbox("re-input-password", err, "Do you want to enter again?", "");
         true

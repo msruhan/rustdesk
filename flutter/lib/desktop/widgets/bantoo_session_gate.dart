@@ -3,14 +3,19 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
 import 'package:flutter_hbb/desktop/widgets/bantoo_pairing_dialog.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
+import 'package:flutter_hbb/utils/multi_window_manager.dart';
 import 'package:http/http.dart' as http;
+import 'package:window_manager/window_manager.dart';
 
 const _kGrantKey = 'bantoo-session-grant';
 const _kOtpKey = 'bantoo-session-otp';
 const _kUnlockedKey = 'bantoo-session-unlocked';
+const _kSessionLogoutEvent = 'indodesk_session_logout';
+const _kSessionLogoutHandler = 'bantoo_gate';
 
 Future<void> clearBantooSessionUnlock() async {
   await bind.mainSetLocalOption(key: _kGrantKey, value: '');
@@ -25,17 +30,38 @@ Future<void> applyBantooSessionUnlock({
   await bind.mainSetLocalOption(key: _kGrantKey, value: grant);
   await bind.mainSetLocalOption(key: _kOtpKey, value: otp);
   await bind.mainSetLocalOption(key: _kUnlockedKey, value: 'Y');
+  if (bind.isIncomingOnly()) {
+    bind.mainSetTemporaryPassword(password: otp);
+  }
 }
 
-Future<Map<String, dynamic>?> _bantooJsonRequest(
+class _BantooApiResult {
+  const _BantooApiResult({
+    this.data,
+    this.error,
+    this.statusCode = 0,
+  });
+
+  final Map<String, dynamic>? data;
+  final String? error;
+  final int statusCode;
+
+  bool get ok => data != null;
+}
+
+Future<_BantooApiResult> _bantooJsonRequest(
   String method,
   String path, {
   Map<String, dynamic>? body,
 }) async {
   final api = (await bind.mainGetApiServer()).replaceAll(RegExp(r'/+$'), '');
-  if (api.isEmpty) return null;
+  if (api.isEmpty) {
+    return const _BantooApiResult(error: 'Server Bantoo belum dikonfigurasi');
+  }
   final token = await bind.mainGetLocalOption(key: 'bantoo-device-token');
-  if (token.isEmpty) return null;
+  if (token.isEmpty) {
+    return const _BantooApiResult(error: 'Perangkat belum terhubung ke Bantoo');
+  }
   final uri = Uri.parse('$api$path');
   final headers = {
     'Content-Type': 'application/json',
@@ -44,10 +70,26 @@ Future<Map<String, dynamic>?> _bantooJsonRequest(
   final resp = method == 'GET'
       ? await http.get(uri, headers: headers)
       : await http.post(uri, headers: headers, body: jsonEncode(body ?? {}));
-  if (resp.statusCode >= 400) return null;
-  final json = jsonDecode(resp.body) as Map<String, dynamic>;
-  if (json['success'] != true) return null;
-  return json['data'] as Map<String, dynamic>?;
+  Map<String, dynamic> json;
+  try {
+    json = jsonDecode(resp.body) as Map<String, dynamic>;
+  } catch (_) {
+    return _BantooApiResult(
+      statusCode: resp.statusCode,
+      error: translate('Gagal menghubungi server Bantoo'),
+    );
+  }
+  if (resp.statusCode >= 400 || json['success'] != true) {
+    return _BantooApiResult(
+      statusCode: resp.statusCode,
+      error: (json['error'] as String?) ??
+          translate('Gagal menghubungi server Bantoo'),
+    );
+  }
+  return _BantooApiResult(
+    statusCode: resp.statusCode,
+    data: json['data'] as Map<String, dynamic>?,
+  );
 }
 
 class BantooSessionGate extends StatefulWidget {
@@ -57,24 +99,73 @@ class BantooSessionGate extends StatefulWidget {
   State<BantooSessionGate> createState() => _BantooSessionGateState();
 }
 
-class _BantooSessionGateState extends State<BantooSessionGate> {
+class _BantooSessionGateState extends State<BantooSessionGate> with WindowListener {
   _GatePhase _phase = _GatePhase.loading;
   String? _message;
   String? _confirmDeadlineAt;
   final _otpController = TextEditingController();
   Timer? _heartbeatTimer;
+  bool _endingSession = false;
 
   @override
   void initState() {
     super.initState();
+    windowManager.addListener(this);
+    rustDeskWinManager.registerActiveWindowListener(onActiveWindowChanged);
+    platformFFI.registerEventHandler(
+      _kSessionLogoutEvent,
+      _kSessionLogoutHandler,
+      (_) async => _onSessionEnded(),
+    );
     unawaited(_bootstrap());
   }
 
   @override
   void dispose() {
+    windowManager.removeListener(this);
+    rustDeskWinManager.unregisterActiveWindowListener(onActiveWindowChanged);
+    platformFFI.unregisterEventHandler(
+      _kSessionLogoutEvent,
+      _kSessionLogoutHandler,
+    );
     _heartbeatTimer?.cancel();
     _otpController.dispose();
     super.dispose();
+  }
+
+  @override
+  void onWindowClose() async {
+    if (rustDeskWinManager.getActiveWindows().contains(kMainWindowId)) {
+      await rustDeskWinManager.unregisterActiveWindow(kMainWindowId);
+    }
+    if (isMacOS && await windowManager.isFullScreen()) {
+      await windowManager.setFullScreen(false);
+      await Future.delayed(const Duration(milliseconds: 700));
+    }
+    await windowManager.hide();
+    super.onWindowClose();
+  }
+
+  Future<void> _onSessionEnded({String? message}) async {
+    if (_endingSession) return;
+    _endingSession = true;
+    try {
+      _heartbeatTimer?.cancel();
+      await clearBantooSessionUnlock();
+      if (bind.isIncomingOnly()) {
+        bind.mainUpdateTemporaryPassword();
+      }
+      if (isDesktop) {
+        await rustDeskWinManager.closeAllSubWindows();
+      }
+      if (!mounted) return;
+      setState(() {
+        _phase = _GatePhase.locked;
+        _message = message ?? translate('Sesi konsultasi telah berakhir');
+      });
+    } finally {
+      _endingSession = false;
+    }
   }
 
   Future<void> _bootstrap() async {
@@ -90,17 +181,26 @@ class _BantooSessionGateState extends State<BantooSessionGate> {
   }
 
   Future<void> _refreshPreflight() async {
+    final wasUnlocked = _phase == _GatePhase.unlocked;
     setState(() {
       _phase = _GatePhase.loading;
       _message = null;
     });
-    final data = await _bantooJsonRequest('GET', '/api/indodesk/session/preflight');
+    final result = await _bantooJsonRequest('GET', '/api/indodesk/session/preflight');
     if (!mounted) return;
-    if (data == null) {
+    if (!result.ok) {
       setState(() {
         _phase = _GatePhase.error;
-        _message = translate('Gagal menghubungi server Bantoo');
+        _message = result.error ?? translate('Gagal menghubungi server Bantoo');
       });
+      return;
+    }
+    final data = result.data!;
+    if (wasUnlocked && data['canUnlock'] != true) {
+      await _onSessionEnded(
+        message: (data['reason'] as String?) ??
+            translate('Belum ada sesi konsultasi remote yang aktif'),
+      );
       return;
     }
     if (data['canUnlock'] == true) {
@@ -118,6 +218,9 @@ class _BantooSessionGateState extends State<BantooSessionGate> {
       _message = (data['reason'] as String?) ??
           translate('Belum ada sesi konsultasi remote yang aktif');
     });
+    if (isDesktop) {
+      unawaited(rustDeskWinManager.closeAllSubWindows());
+    }
   }
 
   Future<void> _submitOtp() async {
@@ -130,21 +233,26 @@ class _BantooSessionGateState extends State<BantooSessionGate> {
       _phase = _GatePhase.loading;
       _message = null;
     });
-    final data = await _bantooJsonRequest(
+    final result = await _bantooJsonRequest(
       'POST',
       '/api/indodesk/session/unlock',
       body: {'otp': otp},
     );
     if (!mounted) return;
-    if (data == null) {
+    if (!result.ok) {
       setState(() {
         _phase = _GatePhase.otpEntry;
-        _message = translate('OTP tidak valid atau sesi tidak aktif');
+        _message = result.error ??
+            translate('OTP tidak valid atau sesi tidak aktif');
       });
       return;
     }
+    final data = result.data!;
     final grant = data['grant'] as String? ?? '';
     await applyBantooSessionUnlock(grant: grant, otp: otp);
+    if (bind.isIncomingOnly()) {
+      await gFFI.serverModel.updatePasswordModel();
+    }
     if (!mounted) return;
     setState(() => _phase = _GatePhase.unlocked);
     _startHeartbeat();
@@ -153,16 +261,11 @@ class _BantooSessionGateState extends State<BantooSessionGate> {
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 45), (_) async {
-      final data = await _bantooJsonRequest('POST', '/api/indodesk/heartbeat', body: {});
+      final result =
+          await _bantooJsonRequest('POST', '/api/indodesk/heartbeat', body: {});
       if (!mounted) return;
-      if (data != null && data['shouldLogout'] == true) {
-        _heartbeatTimer?.cancel();
-        await clearBantooSessionUnlock();
-        if (!mounted) return;
-        setState(() {
-          _phase = _GatePhase.locked;
-          _message = translate('Sesi konsultasi telah berakhir');
-        });
+      if (result.ok && result.data?['shouldLogout'] == true) {
+        await _onSessionEnded();
       }
     });
   }
@@ -285,7 +388,12 @@ class _BantooSessionGateState extends State<BantooSessionGate> {
             children: [
               Text(title, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 12),
-              Text(body),
+              Text(
+                body,
+                style: _message != null && _phase == _GatePhase.otpEntry
+                    ? TextStyle(color: Theme.of(context).colorScheme.error)
+                    : null,
+              ),
               if (extra != null) ...[
                 const SizedBox(height: 16),
                 extra,

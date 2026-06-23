@@ -58,6 +58,50 @@ pub fn clear_session_unlock() {
     LocalConfig::set_option(SESSION_UNLOCKED_KEY.to_owned(), "".to_owned());
 }
 
+/// End IndoDesk consultation session: drop remote connections and notify Flutter UI.
+#[cfg(not(any(target_os = "ios")))]
+pub fn on_session_ended() {
+    if !crate::is_custom_client() {
+        return;
+    }
+    let had_unlock = is_session_unlocked();
+    let incoming = crate::Connection::alive_conns();
+    let outgoing = crate::flutter::sessions::has_any_ui_sessions();
+    if !had_unlock && incoming.is_empty() && !outgoing {
+        return;
+    }
+    log::info!("IndoDesk session ended — disconnecting remote sessions");
+    clear_session_unlock();
+    if !incoming.is_empty() {
+        crate::hbbs_http::sync::request_disconnect(incoming);
+    }
+    if outgoing {
+        crate::flutter::sessions::close_all_ui_sessions();
+    }
+    let event = json!({"name": "indodesk_session_logout"});
+    let _ = crate::flutter::push_global_event(crate::flutter::APP_TYPE_MAIN, event.to_string());
+}
+
+#[cfg(any(target_os = "ios"))]
+pub fn on_session_ended() {}
+
+pub fn handle_heartbeat_response(body: &str) {
+    if !crate::is_custom_client() {
+        return;
+    }
+    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(body) else {
+        return;
+    };
+    let should_logout = parsed
+        .get("data")
+        .and_then(|d| d.get("shouldLogout"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if should_logout {
+        on_session_ended();
+    }
+}
+
 pub fn set_session_unlock(grant: &str, otp: &str) {
     LocalConfig::set_option(SESSION_GRANT_KEY.to_owned(), grant.to_owned());
     LocalConfig::set_option(SESSION_OTP_KEY.to_owned(), otp.to_owned());

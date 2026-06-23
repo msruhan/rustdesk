@@ -1342,6 +1342,10 @@ class RustdeskImpl {
     throw UnimplementedError("mainUpdateTemporaryPassword");
   }
 
+  Future<void> mainSetTemporaryPassword({required String password, dynamic hint}) {
+    throw UnimplementedError("mainSetTemporaryPassword");
+  }
+
   Future<bool> mainSetPermanentPasswordWithResult(
       {required String password, dynamic hint}) {
     throw UnimplementedError("mainSetPermanentPasswordWithResult");

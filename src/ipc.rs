@@ -854,7 +854,11 @@ async fn handle(data: Data, stream: &mut Connection) {
                     Config::set_key_confirmed(false);
                     Config::set_id(&value);
                 } else if name == "temporary-password" {
-                    password::update_temporary_password();
+                    if value.is_empty() {
+                        password::update_temporary_password();
+                    } else {
+                        password::set_temporary_password(value);
+                    }
                 } else if name == "permanent-password" {
                     if Config::is_disable_change_permanent_password() {
                         log::warn!("Changing permanent password is disabled");
@@ -1402,6 +1406,10 @@ pub async fn set_config(name: &str, value: String) -> ResultType<()> {
 
 pub fn update_temporary_password() -> ResultType<()> {
     set_config("temporary-password", "".to_owned())
+}
+
+pub fn assign_temporary_password(password: String) -> ResultType<()> {
+    set_config("temporary-password", password)
 }
 
 fn apply_permanent_password_storage_and_salt_payload(payload: Option<&str>) -> ResultType<()> {

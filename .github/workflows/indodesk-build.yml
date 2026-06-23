@@ -336,11 +336,9 @@ jobs:
       - name: Ad-hoc codesign IndoDesk.app
         env:
           INODESK_APP_NAME: ${{ matrix.role == 'user' && 'IndoDesk User' || 'IndoDesk Teknisi' }}
-        run: |
-          codesign --force --deep --sign - \
-            "./flutter/build/macos/Build/Products/Release/${INODESK_APP_NAME}.app"
-          codesign --verify --deep --strict \
-            "./flutter/build/macos/Build/Products/Release/${INODESK_APP_NAME}.app" || true
+          INODESK_BUNDLE_ID: com.carriez.rustdesk
+          APP_OVERRIDE: ./flutter/build/macos/Build/Products/Release/${{ matrix.role == 'user' && 'IndoDesk User' || 'IndoDesk Teknisi' }}.app
+        run: bash scripts/fix-macos-indodesk-permissions.sh
 
       - name: Create DMG
         env:

@@ -609,6 +609,20 @@ pub fn update_temporary_password() {
 }
 
 #[inline]
+pub fn set_temporary_password(password: String) {
+    if password.is_empty() {
+        return;
+    }
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    password_security::set_temporary_password(password);
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        allow_err!(ipc::assign_temporary_password(password.clone()));
+        *TEMPORARY_PASSWD.lock().unwrap() = password;
+    }
+}
+
+#[inline]
 pub fn is_permanent_password_set() -> bool {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     return Config::has_permanent_password();

@@ -1,5 +1,6 @@
 #import <AVFoundation/AVFoundation.h>
 #import <AppKit/AppKit.h>
+#import <ApplicationServices/ApplicationServices.h>
 #import <IOKit/hidsystem/IOHIDLib.h>
 #include <Security/Authorization.h>
 #include <Security/AuthorizationTags.h>
@@ -37,8 +38,51 @@ extern "C" bool IsCanScreenRecording(bool prompt) {
     #endif
 }
 
+// AXIsProcessTrusted can stay false for ad-hoc signed builds even after the user
+// grants Accessibility in System Settings. Probe with a real AX API call.
+extern "C" bool AccessibilityLegacyProbe() {
+    AXUIElementRef app = AXUIElementCreateApplication(getpid());
+    if (!app) {
+        return false;
+    }
+    CFTypeRef role = NULL;
+    AXError err = AXUIElementCopyAttributeValue(app, kAXRoleAttribute, &role);
+    if (role) {
+        CFRelease(role);
+    }
+    CFRelease(app);
+    return err == kAXErrorSuccess;
+}
+
 
 // https://github.com/codebytere/node-mac-permissions/blob/main/permissions.mm
+
+// IOHIDCheckAccess can stay false for ad-hoc signed builds even when Input Monitoring
+// is enabled in System Settings. Probe by creating a listen-only event tap.
+static CGEventRef InputMonitoringProbeCallback(
+    CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *refcon) {
+    (void)proxy;
+    (void)type;
+    (void)refcon;
+    return event;
+}
+
+extern "C" bool InputMonitoringLegacyProbe() {
+    CGEventMask mask = CGEventMaskBit(kCGEventKeyDown);
+    CFMachPortRef tap = CGEventTapCreate(
+        kCGSessionEventTap,
+        kCGHeadInsertEventTap,
+        kCGEventTapOptionListenOnly,
+        mask,
+        InputMonitoringProbeCallback,
+        NULL
+    );
+    if (!tap) {
+        return false;
+    }
+    CFRelease(tap);
+    return true;
+}
 
 extern "C" bool InputMonitoringAuthStatus(bool prompt) {
     #ifdef NO_InputMonitoringAuthStatus
@@ -68,10 +112,10 @@ extern "C" bool InputMonitoringAuthStatus(bool prompt) {
             default:
                 break;
         }
+        return InputMonitoringLegacyProbe();
     } else {
         return true;
     }
-    return false;
     #endif
 }
 

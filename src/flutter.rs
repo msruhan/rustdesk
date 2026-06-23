@@ -2297,6 +2297,41 @@ pub mod sessions {
             *r#type == conn_type && s.session_handlers.read().unwrap().len() != 0
         })
     }
+
+    #[cfg(not(any(target_os = "ios")))]
+    pub fn has_any_ui_sessions() -> bool {
+        SESSIONS.read().unwrap().values().any(|s| {
+            !s.ui_handler
+                .session_handlers
+                .read()
+                .unwrap()
+                .is_empty()
+        })
+    }
+
+    #[cfg(not(any(target_os = "ios")))]
+    pub fn close_all_ui_sessions() {
+        let session_ids: Vec<SessionID> = SESSIONS
+            .read()
+            .unwrap()
+            .values()
+            .flat_map(|s| {
+                s.ui_handler
+                    .session_handlers
+                    .read()
+                    .unwrap()
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        for session_id in session_ids {
+            if let Some(session) = remove_session_by_session_id(&session_id) {
+                session.close_event_stream(session_id);
+                session.close();
+            }
+        }
+    }
 }
 
 pub(super) mod async_tasks {

@@ -67,6 +67,7 @@ extern "C" {
     fn InputMonitoringAuthStatus(_: BOOL) -> BOOL;
     fn IsCanScreenRecording(_: BOOL) -> BOOL;
     fn CanUseNewApiForScreenCaptureCheck() -> BOOL;
+    fn AccessibilityLegacyProbe() -> BOOL;
     fn MacCheckAdminAuthorization() -> BOOL;
     fn MacGetModeNum(display: u32, numModes: *mut u32) -> BOOL;
     fn MacGetModes(
@@ -101,7 +102,11 @@ fn unsafe_is_process_trusted(prompt: bool) -> bool {
             value,
             kAXTrustedCheckOptionPrompt as _,
         );
-        AXIsProcessTrustedWithOptions(options as _) == YES
+        if AXIsProcessTrustedWithOptions(options as _) == YES {
+            return true;
+        }
+        // AXIsProcessTrusted can stay false for ad-hoc signed builds even when granted.
+        AccessibilityLegacyProbe() == YES
     }
 }
 
@@ -119,15 +124,7 @@ pub fn is_can_screen_recording(prompt: bool) -> bool {
 // macOS >= 10.15
 // https://stackoverflow.com/questions/56597221/detecting-screen-recording-settings-on-macos-catalina/
 // remove just one app from all the permissions: tccutil reset All com.carriez.rustdesk
-fn unsafe_is_can_screen_recording(prompt: bool) -> bool {
-    // we got some report that we show no permission even after set it, so we try to use new api for screen recording check
-    // the new api is only available on macOS >= 10.15, but on stackoverflow, some people said it works on >= 10.16 (crash on 10.15),
-    // but also some said it has bug on 10.16, so we just use it on 11.0.
-    unsafe {
-        if CanUseNewApiForScreenCaptureCheck() == YES {
-            return IsCanScreenRecording(if prompt { YES } else { NO }) == YES;
-        }
-    }
+fn screen_recording_legacy_probe(prompt: bool) -> bool {
     let mut can_record_screen: bool = false;
     unsafe {
         let our_pid: i32 = std::process::id() as _;
@@ -170,13 +167,38 @@ fn unsafe_is_can_screen_recording(prompt: bool) -> bool {
             break;
         }
     }
-    if !can_record_screen && prompt {
-        use scrap::{Capturer, Display};
+    if can_record_screen {
+        return true;
+    }
+    use scrap::{Capturer, Display};
+    if let Ok(d) = Display::primary() {
+        if Capturer::new(d).is_ok() {
+            return true;
+        }
+    }
+    if prompt {
         if let Ok(d) = Display::primary() {
             Capturer::new(d).ok();
         }
     }
-    can_record_screen
+    false
+}
+
+fn unsafe_is_can_screen_recording(prompt: bool) -> bool {
+    // we got some report that we show no permission even after set it, so we try to use new api for screen recording check
+    // the new api is only available on macOS >= 10.15, but on stackoverflow, some people said it works on >= 10.16 (crash on 10.15),
+    // but also some said it has bug on 10.16, so we just use it on 11.0.
+    unsafe {
+        if CanUseNewApiForScreenCaptureCheck() == YES {
+            if IsCanScreenRecording(if prompt { YES } else { NO }) == YES {
+                return true;
+            }
+            // CGPreflightScreenCaptureAccess() can stay false for ad-hoc signed builds
+            // even after the user grants Screen Recording in System Settings.
+            return screen_recording_legacy_probe(prompt);
+        }
+    }
+    screen_recording_legacy_probe(prompt)
 }
 
 pub fn install_service() -> bool {
@@ -186,19 +208,47 @@ pub fn install_service() -> bool {
 // Remember to check if `update_daemon_agent()` need to be changed if changing `is_installed_daemon()`.
 // No need to merge the existing dup code, because the code in these two functions are too critical.
 // New code should be written in a common function.
+fn macos_daemon_plist_paths() -> (String, String) {
+    let label = macos_launchd_label();
+    (
+        format!("/Library/LaunchDaemons/{}_service.plist", label),
+        format!("/Library/LaunchAgents/{}_server.plist", label),
+    )
+}
+
+fn macos_daemon_plist_candidates() -> Vec<(String, String)> {
+    let mut candidates = Vec::new();
+    let (daemon, agent) = macos_daemon_plist_paths();
+    candidates.push((daemon, agent));
+
+    let legacy = crate::get_full_name();
+    candidates.push((
+        format!("/Library/LaunchDaemons/{}_service.plist", legacy),
+        format!("/Library/LaunchAgents/{}_server.plist", legacy),
+    ));
+
+    let org = hbb_common::config::ORG.read().unwrap().clone();
+    let app_name = crate::get_app_name();
+    candidates.push((
+        format!("/Library/LaunchDaemons/{}_{}_service.plist", org, app_name),
+        format!("/Library/LaunchAgents/{}_{}_server.plist", org, app_name),
+    ));
+
+    candidates
+}
+
+fn macos_daemon_plist_installed() -> bool {
+    macos_daemon_plist_candidates()
+        .into_iter()
+        .any(|(daemon, agent)| {
+            std::path::Path::new(&daemon).exists() && std::path::Path::new(&agent).exists()
+        })
+}
+
 pub fn is_installed_daemon(prompt: bool) -> bool {
-    let daemon = format!("{}_service.plist", crate::get_full_name());
-    let agent = format!("{}_server.plist", crate::get_full_name());
-    let agent_plist_file = format!("/Library/LaunchAgents/{}", agent);
+    let (_, agent_plist_file) = macos_daemon_plist_paths();
     if !prompt {
-        // in macos 13, there is new way to check if they are running or enabled, https://developer.apple.com/documentation/servicemanagement/updating-helper-executables-from-earlier-versions-of-macos#Respond-to-changes-in-System-Settings
-        if !std::path::Path::new(&format!("/Library/LaunchDaemons/{}", daemon)).exists() {
-            return false;
-        }
-        if !std::path::Path::new(&agent_plist_file).exists() {
-            return false;
-        }
-        return true;
+        return macos_daemon_plist_installed();
     }
 
     let Some(install_script) = PRIVILEGES_SCRIPTS_DIR.get_file("install.scpt") else {
@@ -302,13 +352,35 @@ fn update_daemon_agent(agent_plist_file: String, update_source_dir: String, sync
     }
 }
 
+fn macos_launchd_label() -> String {
+    get_bundle_id().unwrap_or_else(|| hbb_common::config::ORG.read().unwrap().clone())
+}
+
+fn macos_preferences_id() -> String {
+    crate::get_full_name().replace(' ', "-")
+}
+
 fn correct_app_name(s: &str) -> String {
+    let app_name = crate::get_app_name();
+    let launchd_label = macos_launchd_label();
+    let prefs_id = macos_preferences_id();
+    let log_prefix = app_name.replace(' ', "_").to_lowercase();
+
     let mut s = s.to_owned();
+    s = s.replace("com.carriez.RustDesk", &launchd_label);
+    s = s.replace("/Applications/RustDesk.app", &format!("/Applications/{}.app", app_name));
+    s = s.replace("/Contents/MacOS/RustDesk", &format!("/Contents/MacOS/{}", app_name));
+    s = s.replace(
+        "Library/Preferences/com.carriez.RustDesk",
+        &format!("Library/Preferences/{}", prefs_id),
+    );
+    s = s.replace("RustDesk2.toml", &format!("{}2.toml", app_name));
+    s = s.replace("RustDesk.toml", &format!("{}.toml", app_name));
+    s = s.replace("RustDesk wants", &format!("{} wants", app_name));
+    s = s.replace("/tmp/rustdesk_", &format!("/tmp/{log_prefix}_"));
     if let Some(bundleid) = get_bundle_id() {
         s = s.replace("com.carriez.rustdesk", &bundleid);
     }
-    s = s.replace("rustdesk", &crate::get_app_name().to_lowercase());
-    s = s.replace("RustDesk", &crate::get_app_name());
     s
 }
 
